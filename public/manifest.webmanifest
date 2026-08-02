@@ -1,0 +1,20 @@
+{
+  "name": "法典｜法條精準記憶系統",
+  "short_name": "法典",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1020",
+  "theme_color": "#0b1020",
+  "lang": "zh-Hant",
+  "description": "本地端、可離線使用的法條精準記憶訓練系統。",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
