@@ -48,6 +48,9 @@ jobs:
       - name: Fetch National Laws and Regulations Database
         run: pnpm fetch:laws
 
+      - name: Fetch Police Law Subrules
+        run: pnpm fetch:police-commands
+
       - name: Build
         run: pnpm build
 
