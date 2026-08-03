@@ -1,5 +1,5 @@
 export type ISODate = string
-export type TrainingMode = 'reading' | 'cloze' | 'ordering' | 'prompt' | 'dictation' | 'surprise'
+export type TrainingMode = 'reading' | 'numbers' | 'cloze' | 'ordering' | 'prompt' | 'dictation' | 'surprise'
 export type ArticleStatus = '未開始' | '初次接觸' | '學習中' | '尚未穩定' | '接近熟練' | '已熟練' | '已精通' | '高風險' | '需要重新學習'
 export type TaskType = 'new' | 'due' | 'yesterday-error' | 'seven-day' | 'high-risk' | 'surprise' | 'mastery-check'
 export type ErrorKind = 'missing' | 'extra' | 'replacement' | 'order' | 'keyword' | 'structure'

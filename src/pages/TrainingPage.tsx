@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, ModeBadge, Notice, PageHeader, ProgressBar, StatusBadge } from '../components/ui'
 import { useAppData } from '../context/AppContext'
 import type { ComparisonResult, LawArticle, SubmissionResult, TrainingMode } from '../types'
 import { splitBySentence } from '../lib/importer'
+import { extractNumericFacts, type NumericFact } from '../lib/numericTraining'
 import { formatRelativeReview } from '../lib/utils'
 
 const modes: Array<{ value: TrainingMode; label: string; description: string }> = [
   { value: 'reading', label: '閱讀模式', description: '完整閱讀原文，記錄閱讀次數，但不直接判定背熟。' },
+  { value: 'numbers', label: '數字陷阱', description: '刑度、期間、年齡、金額、比例與次數四選一；任何誤植一律判錯。' },
   { value: 'cloze', label: '關鍵字填空', description: '針對法定用語與關鍵字逐格補回原文。' },
   { value: 'ordering', label: '段落排序', description: '重新排列段落，檢查項、款、目與語意順序。' },
   { value: 'prompt', label: '提示默寫', description: '選擇提示程度後，輸入完整法條；提示越多權重越低。' },
@@ -18,7 +20,14 @@ export function TrainingPage(): JSX.Element {
   const data = useAppData()
   const navigate = useNavigate()
   const { articleId } = useParams()
-  const articles = data.articles.filter((article) => !article.deletedAt && data.laws.some((law) => law.id === article.lawId && !law.deletedAt))
+  const articles = useMemo(() => {
+    const activeLawIds = new Set(data.laws.filter((law) => !law.deletedAt).map((law) => law.id))
+    return data.articles.filter((article) => !article.deletedAt && activeLawIds.has(article.lawId))
+  }, [data.articles, data.laws])
+  const numericRows = useMemo(() => articles
+    .map((item) => ({ article: item, facts: extractNumericFacts(item.text) }))
+    .filter((row) => row.facts.length > 0), [articles])
+  const numericFactCount = useMemo(() => numericRows.reduce((sum, row) => sum + row.facts.length, 0), [numericRows])
   const [selectedId, setSelectedId] = useState(articleId ?? articles[0]?.id ?? '')
   const [mode, setMode] = useState<TrainingMode>('dictation')
   const [hintLevel, setHintLevel] = useState(0)
@@ -26,44 +35,116 @@ export function TrainingPage(): JSX.Element {
   const [answer, setAnswer] = useState('')
   const [clozeValues, setClozeValues] = useState<Record<number, string>>({})
   const [orderItems, setOrderItems] = useState<string[]>([])
+  const [numericFactIndex, setNumericFactIndex] = useState(0)
+  const [numericChoice, setNumericChoice] = useState('')
   const [result, setResult] = useState<SubmissionResult | null>(null)
   const [readMessage, setReadMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [startedAt, setStartedAt] = useState(Date.now())
+
   const article = articles.find((item) => item.id === selectedId)
   const law = article ? data.laws.find((item) => item.id === article.lawId) : undefined
   const mastery = article ? data.mastery.find((item) => item.articleId === article.id) : undefined
   const review = article ? data.reviews.find((item) => item.articleId === article.id) : undefined
-  const modeInfo = modes.find((item) => item.value === mode) ?? modes[4]
+  const modeInfo = modes.find((item) => item.value === mode) ?? modes[modes.length - 1]
   const clozeSegments = useMemo(() => article ? createClozeSegments(article.text, clozeLevel) : [], [article, clozeLevel])
-  const sections = useMemo(() => article ? splitBySentence(article.text) : [], [article])
+  const numericFacts = numericRows.find((row) => row.article.id === article?.id)?.facts ?? []
+  const numericFact = numericFacts[numericFactIndex]
+  const selectableArticles = mode === 'numbers' ? numericRows.map((row) => row.article) : articles
 
   useEffect(() => {
     if (articleId && articleId !== selectedId) setSelectedId(articleId)
   }, [articleId, selectedId])
 
   useEffect(() => {
-    setAnswer(''); setClozeValues({}); setResult(null); setReadMessage(''); setStartedAt(Date.now())
-    const source = article ? splitBySentence(article.text) : []
-    setOrderItems(shuffle(source))
+    if (!articles.some((item) => item.id === selectedId) && articles[0]) setSelectedId(articles[0].id)
+  }, [articles, selectedId])
+
+  useEffect(() => {
+    setAnswer('')
+    setClozeValues({})
+    setResult(null)
+    setReadMessage('')
+    setNumericFactIndex(0)
+    setNumericChoice('')
+    setStartedAt(Date.now())
+    setOrderItems(shuffle(article ? splitBySentence(article.text) : []))
   }, [article?.id, article?.text, mode])
 
-  function chooseArticle(id: string): void { setSelectedId(id); setResult(null); navigate(`/training/${id}`, { replace: true }) }
+  function chooseArticle(id: string): void {
+    setSelectedId(id)
+    setResult(null)
+    setReadMessage('')
+    navigate(`/training/${id}`, { replace: true })
+  }
+
+  function chooseMode(nextMode: TrainingMode): void {
+    setMode(nextMode)
+    if (nextMode === 'numbers' && !numericRows.some((row) => row.article.id === selectedId) && numericRows[0]) {
+      chooseArticle(numericRows[0].article.id)
+    }
+  }
 
   async function submit(): Promise<void> {
     if (!article) return
     if (mode === 'reading') {
       setBusy(true)
-      try { await data.markRead(article.id, Math.floor((Date.now() - startedAt) / 1000)); setReadMessage(`已記錄閱讀一次。閱讀紀錄不會直接判定為背熟。`) } catch (error) { setReadMessage(error instanceof Error ? error.message : '閱讀紀錄儲存失敗。') } finally { setBusy(false) }
+      try {
+        await data.markRead(article.id, Math.floor((Date.now() - startedAt) / 1000))
+        setReadMessage('已記錄閱讀一次。閱讀紀錄不會直接判定為背熟。')
+      } catch (error) {
+        setReadMessage(error instanceof Error ? error.message : '閱讀紀錄儲存失敗。')
+      } finally {
+        setBusy(false)
+      }
       return
     }
-    const userAnswer = mode === 'cloze' ? clozeSegments.map((segment, index) => segment.hidden ? clozeValues[index] ?? '' : segment.value).join('') : mode === 'ordering' ? orderItems.join('') : answer
-    if (!userAnswer.trim()) { setReadMessage('請先完成作答再送出。'); return }
-    setBusy(true); setReadMessage('')
+
+    const userAnswer = mode === 'numbers'
+      ? numericChoice
+      : mode === 'cloze'
+        ? clozeSegments.map((segment, index) => segment.hidden ? clozeValues[index] ?? '' : segment.value).join('')
+        : mode === 'ordering'
+          ? orderItems.join('')
+          : answer
+    if (!userAnswer.trim()) {
+      setReadMessage(mode === 'numbers' ? '請先選擇一個數字答案。' : '請先完成作答再送出。')
+      return
+    }
+    if (mode === 'numbers' && !numericFact) {
+      setReadMessage('這條法條沒有可抽考的數字，請改選其他法條。')
+      return
+    }
+
+    setBusy(true)
+    setReadMessage('')
     try {
-      const submission = await data.submitTraining({ article, mode, answer: userAnswer, usedHints: mode === 'prompt' ? hintLevel : 0, durationSeconds: Math.max(1, Math.floor((Date.now() - startedAt) / 1000)) })
+      const submission = await data.submitTraining({
+        article,
+        mode,
+        answer: userAnswer,
+        usedHints: mode === 'prompt' ? hintLevel : 0,
+        durationSeconds: Math.max(1, Math.floor((Date.now() - startedAt) / 1000)),
+        originalText: mode === 'numbers' ? article.text : undefined,
+        comparisonText: mode === 'numbers' ? numericFact?.answer : undefined,
+        requireExact: mode === 'numbers',
+      })
       setResult(submission)
-    } catch (error) { setReadMessage(error instanceof Error ? error.message : '作答儲存失敗。') } finally { setBusy(false) }
+    } catch (error) {
+      setReadMessage(error instanceof Error ? error.message : '作答儲存失敗。')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function resetAttempt(): void {
+    setAnswer('')
+    setClozeValues({})
+    setNumericChoice('')
+    setResult(null)
+    setReadMessage('')
+    setStartedAt(Date.now())
+    setOrderItems(shuffle(article ? splitBySentence(article.text) : []))
   }
 
   function nextArticle(): void {
@@ -72,13 +153,123 @@ export function TrainingPage(): JSX.Element {
     chooseArticle(next.id)
   }
 
-  if (!articles.length || !article) return <div className="page-stack"><PageHeader eyebrow="TRAINING / 訓練模式" title="開始訓練" description="請先匯入至少一條已校對的法條原文。" /><div className="empty-state card"><div className="empty-icon">✦</div><h3>尚無可訓練法條</h3><p>法條資料會留在本機 IndexedDB，不需要登入或網路。</p><Button onClick={() => navigate('/articles')}>前往法條瀏覽</Button></div></div>
+  function nextNumericQuestion(): void {
+    if (!article || !numericRows.length) return
+    if (numericFactIndex < numericFacts.length - 1) {
+      setNumericFactIndex((current) => current + 1)
+      resetAttempt()
+      return
+    }
+    const rowIndex = numericRows.findIndex((row) => row.article.id === article.id)
+    const nextRow = numericRows[(rowIndex + 1) % numericRows.length]
+    setNumericFactIndex(0)
+    resetAttempt()
+    if (nextRow.article.id !== article.id) chooseArticle(nextRow.article.id)
+  }
+
+  if (!articles.length || !article) {
+    return <div className="page-stack"><PageHeader eyebrow="TRAINING / 訓練模式" title="開始訓練" description="請先匯入至少一條已校對的法條原文。" /><div className="empty-state card"><div className="empty-icon">✦</div><h3>尚無可訓練法條</h3><p>法條資料會留在本機 IndexedDB，不需要登入或網路。</p><Button onClick={() => navigate('/articles')}>前往法條瀏覽</Button></div></div>
+  }
 
   return <div className="page-stack training-page">
-    <PageHeader eyebrow="TRAINING / 訓練模式" title="精準背誦訓練" description="每次作答都會留下逐字比對、錯題、熟練度與下一次複習日期。" actions={<Button variant="secondary" onClick={() => navigate('/today')}>今日任務</Button>} />
-    <section className="training-toolbar card"><label className="training-article-select"><span>目前法條</span><select value={selectedId} onChange={(event) => chooseArticle(event.target.value)}>{articles.map((item) => { const itemLaw = data.laws.find((lawItem) => lawItem.id === item.lawId); return <option value={item.id} key={item.id}>{itemLaw?.shortName ?? itemLaw?.name} · 第 {item.articleNumber} 條</option> })}</select></label><div className="training-metadata">{mastery && <StatusBadge status={mastery.status} />}<span>熟練度 {Math.round(mastery?.score ?? 0)}%</span>{review && <span>下次：{formatRelativeReview(review.nextReviewAt)}</span>}</div></section>
-    <section className="mode-tabs">{modes.map((item) => <button key={item.value} className={mode === item.value ? 'active' : ''} onClick={() => setMode(item.value)}><span className="mode-tab-number">{String(modes.findIndex((modeItem) => modeItem.value === item.value) + 1).padStart(2, '0')}</span><strong>{item.label}</strong><small>{item.value === 'dictation' ? '核心驗證' : item.value === 'surprise' ? '隨機抽考' : item.value === 'reading' ? '建立記憶' : '強化回憶'}</small></button>)}</section>
-    <section className="training-layout"><div className="training-main card"><div className="training-card-heading"><div><div className="training-label"><ModeBadge mode={mode} /><span>{modeInfo.description}</span></div><h2>{law?.name ?? '未知法規'} <span>· 第 {article.articleNumber} 條</span></h2>{article.title && <p className="muted">{article.title}</p>}</div><div className="timer-badge">◷ 進行中</div></div>{mode === 'reading' && <ReadingPanel article={article} fontScale={data.settings.fontScale} onIncrease={() => void data.updateSettings({ fontScale: Math.min(1.35, data.settings.fontScale + 0.05) })} onDecrease={() => void data.updateSettings({ fontScale: Math.max(0.85, data.settings.fontScale - 0.05) })} />}{mode === 'cloze' && <ClozePanel segments={clozeSegments} values={clozeValues} level={clozeLevel} onLevelChange={setClozeLevel} onChange={(index, value) => setClozeValues((current) => ({ ...current, [index]: value }))} />}{mode === 'ordering' && <OrderingPanel items={orderItems} onMove={(from, to) => setOrderItems(moveItem(orderItems, from, to))} />}{mode === 'prompt' && <DictationPanel article={article} answer={answer} onAnswer={setAnswer} hintLevel={hintLevel} onHintLevel={setHintLevel} prompt />}{mode === 'dictation' && <DictationPanel article={article} answer={answer} onAnswer={setAnswer} hintLevel={0} onHintLevel={() => undefined} />}{readMessage && <Notice tone={readMessage.includes('失敗') || readMessage.includes('請先') ? 'warning' : 'success'}>{readMessage}</Notice>}{result && <ResultPanel result={result} /> }<div className="training-submit-row"><span className="muted">答題時間會在送出時記錄</span><div><Button variant="ghost" onClick={() => { setAnswer(''); setResult(null); setStartedAt(Date.now()) }}>重新開始</Button><Button onClick={() => void submit()} disabled={busy}>{busy ? '儲存中…' : mode === 'reading' ? '我已閱讀' : '送出並查看比對'}</Button></div></div></div><aside className="training-side"><div className="card side-status-card"><p className="eyebrow">ARTICLE STATUS</p><div className="side-score"><strong>{Math.round(mastery?.score ?? 0)}</strong><span>/ 100</span></div><ProgressBar value={mastery?.score ?? 0} label="累積熟練度" tone={(mastery?.score ?? 0) >= 80 ? 'green' : 'gold'} /><div className="side-stat-list"><div><span>連續答對</span><strong>{mastery?.consecutiveCorrect ?? 0} 次</strong></div><div><span>跨日答對</span><strong>{mastery?.crossDayPasses ?? 0} 天</strong></div><div><span>完整默寫日</span><strong>{mastery?.fullDictationDates.length ?? 0} 日</strong></div><div><span>下次複習</span><strong>{review ? formatRelativeReview(review.nextReviewAt) : '送出後安排'}</strong></div></div></div><div className="card training-tip"><p className="eyebrow">PRECISION NOTE</p><h3>逐字驗證的核心</h3><p>系統會把「得、應、不得、於、及、或、與、之、其」等高權重詞彙列入額外檢查。單次高分不會直接標記為精通。</p><div className="tip-line"><span /> 三個不同日期 + 連續三次 95 分以上，才有機會進入精通判定。</div></div>{result?.unlockedAchievements.length ? <div className="card achievement-toast"><span>♜</span><div><strong>解鎖成就</strong>{result.unlockedAchievements.map((item) => <p key={item.key}>{item.title}</p>)}</div></div> : null}</aside></section>{result && <div className="after-result-actions"><Button variant="secondary" onClick={nextArticle}>下一條法條 →</Button><Button variant="ghost" onClick={() => navigate('/records')}>查看學習紀錄</Button></div>}
+    <PageHeader eyebrow="TRAINING / 訓練模式" title="精準背誦訓練" description="數字陷阱採 0／100 精確判定；其他模式保留逐字比對、錯題、熟練度與間隔複習。" actions={<Button variant="secondary" onClick={() => navigate('/today')}>今日任務</Button>} />
+
+    <section className="training-toolbar card">
+      <label className="training-article-select">
+        <span>{mode === 'numbers' ? '數字題庫法條' : '目前法條'}</span>
+        <select value={selectedId} onChange={(event) => chooseArticle(event.target.value)}>
+          {selectableArticles.map((item) => {
+            const itemLaw = data.laws.find((lawItem) => lawItem.id === item.lawId)
+            const factCount = mode === 'numbers' ? numericRows.find((row) => row.article.id === item.id)?.facts.length ?? 0 : 0
+            return <option value={item.id} key={item.id}>{itemLaw?.shortName ?? itemLaw?.name} · 第 {item.articleNumber} 條{mode === 'numbers' ? `（${factCount} 題）` : ''}</option>
+          })}
+        </select>
+      </label>
+      <div className="training-metadata">
+        {mastery && <StatusBadge status={mastery.status} />}
+        {mode === 'numbers' ? <span>數字題庫 {numericRows.length} 條／{numericFactCount} 題</span> : <span>熟練度 {Math.round(mastery?.score ?? 0)}%</span>}
+        {review && <span>下次：{formatRelativeReview(review.nextReviewAt)}</span>}
+      </div>
+    </section>
+
+    <section className="mode-tabs">
+      {modes.map((item, index) => <button key={item.value} className={mode === item.value ? 'active' : ''} onClick={() => chooseMode(item.value)}><span className="mode-tab-number">{String(index + 1).padStart(2, '0')}</span><strong>{item.label}</strong><small>{modeCaption(item.value)}</small></button>)}
+    </section>
+
+    <section className="training-layout">
+      <div className="training-main card">
+        <div className="training-card-heading">
+          <div>
+            <div className="training-label"><ModeBadge mode={mode} /><span>{modeInfo.description}</span></div>
+            <h2>{law?.name ?? '未知法規'} <span>· 第 {article.articleNumber} 條</span></h2>
+            {article.title && <p className="muted">{article.title}</p>}
+          </div>
+          <div className="timer-badge">◷ 進行中</div>
+        </div>
+
+        {mode === 'reading' && <ReadingPanel article={article} fontScale={data.settings.fontScale} onIncrease={() => void data.updateSettings({ fontScale: Math.min(1.35, data.settings.fontScale + 0.05) })} onDecrease={() => void data.updateSettings({ fontScale: Math.max(0.85, data.settings.fontScale - 0.05) })} />}
+        {mode === 'numbers' && <NumericTrapPanel fact={numericFact} index={numericFactIndex} total={numericFacts.length} choice={numericChoice} onChoose={setNumericChoice} result={result} />}
+        {mode === 'cloze' && <ClozePanel segments={clozeSegments} values={clozeValues} level={clozeLevel} onLevelChange={setClozeLevel} onChange={(index, value) => setClozeValues((current) => ({ ...current, [index]: value }))} />}
+        {mode === 'ordering' && <OrderingPanel items={orderItems} onMove={(from, to) => setOrderItems(moveItem(orderItems, from, to))} />}
+        {mode === 'prompt' && <DictationPanel article={article} answer={answer} onAnswer={setAnswer} hintLevel={hintLevel} onHintLevel={setHintLevel} prompt />}
+        {mode === 'dictation' && <DictationPanel article={article} answer={answer} onAnswer={setAnswer} hintLevel={0} onHintLevel={() => undefined} />}
+
+        {readMessage && <Notice tone={readMessage.includes('失敗') || readMessage.includes('請先') || readMessage.includes('沒有') ? 'warning' : 'success'}>{readMessage}</Notice>}
+        {result && mode !== 'numbers' && <ResultPanel result={result} />}
+
+        <div className="training-submit-row">
+          <span className="muted">{mode === 'numbers' ? '只要數字不完全相同，本題即為 0 分並進入錯題複習' : '答題時間會在送出時記錄'}</span>
+          <div>
+            <Button variant="ghost" onClick={resetAttempt}>{mode === 'numbers' && result ? '重做本題' : '重新開始'}</Button>
+            <Button onClick={() => mode === 'numbers' && result ? nextNumericQuestion() : void submit()} disabled={busy || mode === 'numbers' && !numericFact}>{busy ? '儲存中…' : mode === 'numbers' ? result ? '下一題數字 →' : '鎖定答案' : mode === 'reading' ? '我已閱讀' : '送出並查看比對'}</Button>
+          </div>
+        </div>
+      </div>
+
+      <aside className="training-side">
+        <div className="card side-status-card">
+          <p className="eyebrow">ARTICLE STATUS</p>
+          <div className="side-score"><strong>{Math.round(mastery?.score ?? 0)}</strong><span>/ 100</span></div>
+          <ProgressBar value={mastery?.score ?? 0} label="累積熟練度" tone={(mastery?.score ?? 0) >= 80 ? 'green' : 'gold'} />
+          <div className="side-stat-list">
+            {mode === 'numbers' && <div><span>本條數字題</span><strong>{numericFacts.length} 題</strong></div>}
+            {mode === 'numbers' && <div><span>目前進度</span><strong>{numericFacts.length ? numericFactIndex + 1 : 0} / {numericFacts.length}</strong></div>}
+            <div><span>連續答對</span><strong>{mastery?.consecutiveCorrect ?? 0} 次</strong></div>
+            <div><span>跨日答對</span><strong>{mastery?.crossDayPasses ?? 0} 天</strong></div>
+            {mode !== 'numbers' && <div><span>完整默寫日</span><strong>{mastery?.fullDictationDates.length ?? 0} 日</strong></div>}
+            <div><span>下次複習</span><strong>{review ? formatRelativeReview(review.nextReviewAt) : '送出後安排'}</strong></div>
+          </div>
+        </div>
+
+        <div className="card training-tip">
+          <p className="eyebrow">PRECISION NOTE</p>
+          {mode === 'numbers' ? <><h3>數字不能只靠印象</h3><p>選項會維持相同單位，優先混入同條與常考的相近門檻，例如三年／五年、二月／三月、二十四／四十八小時。</p><div className="tip-line"><span /> 答錯會保留法規、條號、完整原文與你誤選的數字，並排入下一次複習。</div></> : <><h3>逐字驗證的核心</h3><p>系統會把「得、應、不得、於、及、或、與、之、其」等高權重詞彙列入額外檢查。單次高分不會直接標記為精通。</p><div className="tip-line"><span /> 三個不同日期 + 連續三次 95 分以上，才有機會進入精通判定。</div></>}
+        </div>
+
+        {result?.unlockedAchievements.length ? <div className="card achievement-toast"><span>♜</span><div><strong>解鎖成就</strong>{result.unlockedAchievements.map((item) => <p key={item.key}>{item.title}</p>)}</div></div> : null}
+      </aside>
+    </section>
+
+    {result && mode !== 'numbers' && <div className="after-result-actions"><Button variant="secondary" onClick={nextArticle}>下一條法條 →</Button><Button variant="ghost" onClick={() => navigate('/records')}>查看學習紀錄</Button></div>}
+  </div>
+}
+
+function NumericTrapPanel({ fact, index, total, choice, onChoose, result }: { fact?: NumericFact; index: number; total: number; choice: string; onChoose: (value: string) => void; result: SubmissionResult | null }): JSX.Element {
+  if (!fact) return <div className="numeric-panel"><Notice tone="warning">這條法條沒有刑度、期間、年齡、金額、比例或次數可供抽考。</Notice></div>
+  const correct = Boolean(result && choice === fact.answer)
+  return <div className="numeric-panel">
+    <div className="numeric-toolbar"><span className="numeric-category">{fact.category}</span><strong>本條第 {index + 1} / {total} 題</strong></div>
+    <div className="numeric-instruction"><span>請選出空格中的精確法定數字</span><small>選項保留原單位，錯一字即判錯</small></div>
+    <p className="numeric-question">{fact.before}<mark aria-label="待作答數字">［？］</mark>{fact.after}</p>
+    <div className="numeric-options" role="radiogroup" aria-label="數字答案選項">
+      {fact.options.map((option, optionIndex) => {
+        const state = result
+          ? option === fact.answer ? 'correct' : option === choice ? 'wrong' : ''
+          : option === choice ? 'selected' : ''
+        return <button type="button" role="radio" aria-checked={option === choice} className={state} disabled={Boolean(result)} onClick={() => onChoose(option)} key={option}><span>{String.fromCharCode(65 + optionIndex)}</span><strong>{option}</strong></button>
+      })}
+    </div>
+    {result && <div className={`numeric-feedback ${correct ? 'correct' : 'wrong'}`}><div><span>{correct ? '✓' : '!'}</span><div><strong>{correct ? '精準命中：100 分' : '數字誤植：0 分'}</strong><p>{correct ? `答案確實是「${fact.answer}」。` : `你選「${choice}」，正確答案是「${fact.answer}」。`}</p></div></div><small>下次複習：{formatRelativeReview(result.review.nextReviewAt)}</small><details><summary>查看含答案的完整語境</summary><p>{fact.context}</p></details></div>}
   </div>
 }
 
@@ -132,6 +323,14 @@ function getPrompts(text: string): string[] {
   const segments = splitBySentence(text)
   const firstCharacters = segments.map((segment) => segment[0] ?? '').join('、')
   return [firstCharacters || '每句首字提示', segments[0]?.slice(0, 24) ?? '第一段提示', segments.map((segment, index) => `第${index + 1}段`).join('、') || '段落架構提示', '僅顯示法規名稱與條號']
+}
+
+function modeCaption(mode: TrainingMode): string {
+  if (mode === 'dictation') return '核心驗證'
+  if (mode === 'reading') return '建立記憶'
+  if (mode === 'numbers') return '高頻陷阱'
+  if (mode === 'surprise') return '隨機抽考'
+  return '強化回憶'
 }
 
 function shuffle(items: string[]): string[] {

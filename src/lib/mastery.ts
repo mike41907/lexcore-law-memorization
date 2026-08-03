@@ -37,7 +37,7 @@ export function updateMastery(
   const current = previous ?? createInitialMastery(answer.articleId, now)
   const attempts = current.attempts + 1
   const averages = {
-    clozeAverage: updateAverage(current.clozeAverage, answer.mode === 'cloze' ? answer.score : undefined, attempts),
+    clozeAverage: updateAverage(current.clozeAverage, answer.mode === 'cloze' || answer.mode === 'numbers' ? answer.score : undefined, attempts),
     orderingAverage: updateAverage(current.orderingAverage, answer.mode === 'ordering' ? answer.score : undefined, attempts),
     promptAverage: updateAverage(current.promptAverage, answer.mode === 'prompt' ? answer.score : undefined, attempts),
     dictationAverage: updateAverage(current.dictationAverage, answer.mode === 'dictation' || answer.mode === 'surprise' ? answer.score : undefined, attempts),

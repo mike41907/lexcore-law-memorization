@@ -56,6 +56,17 @@ interface CreateLawInput {
   source?: LawCollection['source']
 }
 
+interface SubmitTrainingInput {
+  article: LawArticle
+  mode: TrainingMode
+  answer: string
+  usedHints: number
+  durationSeconds: number
+  originalText?: string
+  comparisonText?: string
+  requireExact?: boolean
+}
+
 interface AppContextValue extends AppState {
   loading: boolean
   error: string | null
@@ -68,7 +79,7 @@ interface AppContextValue extends AppState {
   updateArticle: (article: LawArticle) => Promise<void>
   deleteArticle: (articleId: string) => Promise<void>
   markRead: (articleId: string, durationSeconds?: number) => Promise<void>
-  submitTraining: (input: { article: LawArticle; mode: TrainingMode; answer: string; usedHints: number; durationSeconds: number; originalText?: string }) => Promise<{ answer: AnswerRecord; mastery: MasteryRecord; review: ReviewSchedule; unlockedAchievements: Achievement[] }>
+  submitTraining: (input: SubmitTrainingInput) => Promise<{ answer: AnswerRecord; mastery: MasteryRecord; review: ReviewSchedule; unlockedAchievements: Achievement[] }>
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>
   exportBackup: () => Promise<BackupData>
   restoreBackup: (raw: string, mode: 'overwrite' | 'merge') => Promise<void>
@@ -329,10 +340,13 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
     await loadState()
   }, [loadState, state])
 
-  const submitTraining = useCallback(async (input: { article: LawArticle; mode: TrainingMode; answer: string; usedHints: number; durationSeconds: number; originalText?: string }): Promise<{ answer: AnswerRecord; mastery: MasteryRecord; review: ReviewSchedule; unlockedAchievements: Achievement[] }> => {
+  const submitTraining = useCallback(async (input: SubmitTrainingInput): Promise<{ answer: AnswerRecord; mastery: MasteryRecord; review: ReviewSchedule; unlockedAchievements: Achievement[] }> => {
     const current = requireState(state)
     const timestamp = nowIso()
-    const comparison: ComparisonResult = compareText(input.originalText ?? input.article.text, input.answer, current.settings.compare, current.settings.highWeightKeywords, input.usedHints)
+    const compared = compareText(input.comparisonText ?? input.originalText ?? input.article.text, input.answer, current.settings.compare, current.settings.highWeightKeywords, input.usedHints)
+    const comparison: ComparisonResult = input.requireExact && compared.normalizedExpected !== compared.normalizedActual
+      ? { ...compared, accuracy: 0, score: 0, grade: 'E' }
+      : compared
     const answer: AnswerRecord = {
       id: makeId('answer'),
       articleId: input.article.id,
