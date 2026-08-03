@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { splitLawText } from './importer'
+import { normalizeArticleNumber, splitLawText } from './importer'
 
 describe('splitLawText', () => {
   it('splits common article heading formats', () => {
@@ -14,5 +14,9 @@ describe('splitLawText', () => {
     expect(result).toHaveLength(1)
     expect(result[0].articleNumber).toBe('未編號')
     expect(result[0].notes).toContain('未偵測')
+  })
+
+  it('normalizes full article labels for duplicate detection', () => {
+    expect(normalizeArticleNumber('第 １-１ 條')).toBe('1-1')
   })
 })

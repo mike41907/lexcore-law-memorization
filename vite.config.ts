@@ -1,8 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-export default defineConfig(({ command }) => ({
-  base: command === 'build' ? '/lexcore-law-memorization/' : '/',
+export default defineConfig(({ command, isPreview }) => ({
+  base: command === 'build' || isPreview ? '/lexcore-law-memorization/' : '/',
   plugins: [react()],
   server: {
     host: '0.0.0.0',

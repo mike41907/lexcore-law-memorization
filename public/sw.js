@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lexcore-v0.1.1'
+const CACHE_NAME = 'lexcore-v0.2.0'
 const SCOPE_URL = self.registration.scope
 const INDEX_URL = new URL('index.html', SCOPE_URL).href
 const APP_SHELL = [
@@ -42,6 +42,26 @@ self.addEventListener('fetch', (event) => {
           return response
         })
         .catch(() => caches.match(INDEX_URL).then((cached) => cached ?? caches.match(SCOPE_URL))),
+    )
+    return
+  }
+
+  if (requestUrl.pathname.includes('/official/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok && response.type === 'basic') {
+            event.waitUntil(
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone())),
+            )
+          }
+          return response
+        })
+        .catch(async () => {
+          const cached = await caches.match(event.request)
+          if (cached) return cached
+          throw new Error('Official law data is unavailable offline.')
+        }),
     )
     return
   }

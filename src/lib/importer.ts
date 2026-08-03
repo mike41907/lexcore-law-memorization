@@ -6,6 +6,8 @@ const ARTICLE_HEADING = /第\s*([0-9０-９一二三四五六七八九十百千�
 export function normalizeArticleNumber(value: string): string {
   return value
     .replace(/[　\s]/g, '')
+    .replace(/^第/, '')
+    .replace(/條$/, '')
     .replace(/[０-９]/g, (character) => String.fromCharCode(character.charCodeAt(0) - 0xff10 + 0x30))
 }
 
@@ -89,6 +91,7 @@ export function articleToDraft(article: LawArticle): ImportArticleDraft {
     importance: article.importance,
     mustMemorize: article.mustMemorize,
     includeDaily: article.includeDaily,
+    source: article.source,
   }
 }
 

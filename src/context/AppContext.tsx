@@ -20,7 +20,7 @@ import type {
 } from '../types'
 import { clearStore, getAll, put, putMany, readSnapshot, remove, STORE_NAMES, type DatabaseSnapshot } from '../lib/db'
 import { createBackup, parseBackup } from '../lib/backup'
-import { splitIntoSections } from '../lib/importer'
+import { normalizeArticleNumber, splitIntoSections } from '../lib/importer'
 import { applyReadToMastery, createInitialMastery, updateMastery } from '../lib/mastery'
 import { calculateNextReview } from '../lib/scheduler'
 import { generateDailyTasks } from '../lib/tasks'
@@ -52,6 +52,7 @@ interface CreateLawInput {
   importance: 1 | 2 | 3 | 4 | 5
   examScope: boolean
   notes: string
+  source?: LawCollection['source']
 }
 
 interface AppContextValue extends AppState {
@@ -169,14 +170,15 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
     if (!current.laws.some((law) => law.id === lawId && !law.deletedAt)) throw new Error('找不到可用的法規，請先建立法規。')
     if (!drafts.length) throw new Error('沒有可儲存的法條。')
     const existing = current.articles.filter((article) => article.lawId === lawId && !article.deletedAt)
-    const seen = new Set(existing.map((article) => article.articleNumber.replace(/\s/g, '')))
+    const seen = new Set(existing.map((article) => normalizeArticleNumber(article.articleNumber)))
     const timestamp = nowIso()
     const articles: LawArticle[] = []
     const sections: ArticleSection[] = []
     for (const draft of drafts) {
       const number = draft.articleNumber.trim() || '未編號'
-      if (seen.has(number)) throw new Error(`條號「${number}」重複，請在預覽中修改後再儲存。`)
-      seen.add(number)
+      const numberKey = normalizeArticleNumber(number)
+      if (seen.has(numberKey)) throw new Error(`條號「${number}」重複，請在預覽中修改後再儲存。`)
+      seen.add(numberKey)
       const article: LawArticle = {
         id: makeId('article'),
         lawId,
@@ -189,6 +191,7 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
         includeDaily: draft.includeDaily,
         tags: [],
         isBoss: false,
+        source: draft.source,
         createdAt: timestamp,
         updatedAt: timestamp,
       }

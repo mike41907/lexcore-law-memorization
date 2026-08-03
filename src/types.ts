@@ -43,6 +43,15 @@ export interface AppSettings {
   updatedAt: ISODate
 }
 
+export interface OfficialImportSource {
+  type: 'moj-law'
+  provider: '法務部全國法規資料庫'
+  lawCode: string
+  lawUrl: string
+  dataUpdatedAt: string
+  retrievedAt: ISODate
+}
+
 export interface LawCollection {
   id: string
   name: string
@@ -51,6 +60,7 @@ export interface LawCollection {
   importance: 1 | 2 | 3 | 4 | 5
   examScope: boolean
   notes: string
+  source?: OfficialImportSource
   createdAt: ISODate
   updatedAt: ISODate
   deletedAt?: ISODate
@@ -68,6 +78,7 @@ export interface LawArticle {
   includeDaily: boolean
   tags: string[]
   isBoss: boolean
+  source?: OfficialImportSource
   createdAt: ISODate
   updatedAt: ISODate
   deletedAt?: ISODate
@@ -271,6 +282,7 @@ export interface ImportArticleDraft {
   importance: 1 | 2 | 3 | 4 | 5
   mustMemorize: boolean
   includeDaily: boolean
+  source?: OfficialImportSource
 }
 
 export interface SubmissionResult {
