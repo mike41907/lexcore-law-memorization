@@ -12,6 +12,7 @@ import { AchievementsPage } from './pages/AchievementsPage'
 import { ConfusionsPage } from './pages/ConfusionsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { BackupPage } from './pages/BackupPage'
+import { LawSystemsPage } from './pages/LawSystemsPage'
 
 export default function App(): JSX.Element {
   return <Routes>
@@ -20,6 +21,8 @@ export default function App(): JSX.Element {
       <Route path="/today" element={<TodayPage />} />
       <Route path="/laws" element={<LawsPage />} />
       <Route path="/articles" element={<ArticlesPage />} />
+      <Route path="/systems" element={<LawSystemsPage />} />
+      <Route path="/systems/:lawId" element={<LawSystemsPage />} />
       <Route path="/training" element={<TrainingPage />} />
       <Route path="/training/:articleId" element={<TrainingPage />} />
       <Route path="/errors" element={<ErrorsPage />} />
