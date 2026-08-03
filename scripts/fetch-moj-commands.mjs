@@ -27,7 +27,8 @@ for (const command of commands) {
     articles.push({ number, content: lines.join('\n'), heading })
   }
   if (!articles.length) throw new Error(`${command.name} 沒有讀到條文。`)
-  const modifiedDate = cleanHtml(html.match(/修正日期：([\s\S]*?)<\/div>/)?.[1] ?? '')
+  const modifiedMatch = html.match(/修正日期：[\s\S]{0,200}?民國\s*(\d+)\s*年\s*(\d+)\s*月\s*(\d+)\s*日/)
+  const modifiedDate = modifiedMatch ? `民國 ${modifiedMatch[1]} 年 ${modifiedMatch[2]} 月 ${modifiedMatch[3]} 日` : ''
   await writeFile(resolve(outputDir, `${command.code}.json`), JSON.stringify({ schemaVersion: 1, code: command.code, name: command.name, url, modifiedDate, articles }), 'utf8')
   console.log(`MOJ_COMMAND_OK code=${command.code} articles=${articles.length}`)
 }
