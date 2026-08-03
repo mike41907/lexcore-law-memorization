@@ -19,8 +19,6 @@ export interface LawSystemMap {
   nodeCount: number
 }
 
-const LEVEL_RANK: Record<SystemLevel, number> = { 編: 1, 章: 2, 節: 3, 款: 4, 目: 5, 未分章: 0 }
-
 export function compareArticleNumbers(left: LawArticle, right: LawArticle): number {
   const a = numberParts(left.articleNumber)
   const b = numberParts(right.articleNumber)
@@ -34,26 +32,18 @@ export function compareArticleNumbers(left: LawArticle, right: LawArticle): numb
 export function buildLawSystemMap(input: LawArticle[]): LawSystemMap {
   const articles = input.filter((article) => !article.deletedAt).sort(compareArticleNumbers)
   const roots: LawSystemNode[] = []
-  const stack: LawSystemNode[] = []
   let ungrouped: LawSystemNode | undefined
+  let current: LawSystemNode | undefined
   let sequence = 0
 
   for (const article of articles) {
     const parsed = parseHeading(article.title)
-    if (parsed) {
-      const rank = LEVEL_RANK[parsed.level]
-      const current = [...stack].reverse().find((node) => LEVEL_RANK[node.level] === rank)
-      if (!current || current.label !== parsed.label) {
-        while (stack.length && LEVEL_RANK[stack[stack.length - 1].level] >= rank) stack.pop()
-        const node = createNode(`${parsed.level}-${sequence += 1}`, parsed.level, parsed.label, article.articleNumber)
-        const parent = stack[stack.length - 1]
-        if (parent) parent.children.push(node)
-        else roots.push(node)
-        stack.push(node)
-      }
+    if (parsed && (!current || current.label !== parsed.label)) {
+      current = createNode(`${parsed.level}-${sequence += 1}`, parsed.level, parsed.label, article.articleNumber)
+      roots.push(current)
     }
 
-    let target = stack[stack.length - 1]
+    let target = current
     if (!target) {
       if (!ungrouped) {
         ungrouped = createNode('ungrouped', '未分章', '未分章（依條號排列）', article.articleNumber)
@@ -62,7 +52,7 @@ export function buildLawSystemMap(input: LawArticle[]): LawSystemMap {
       target = ungrouped
     }
     target.directArticleIds.push(article.id)
-    for (const node of stack.length ? stack : [target]) addArticle(node, article)
+    addArticle(target, article)
   }
 
   return { roots, articleCount: articles.length, nodeCount: countNodes(roots) }

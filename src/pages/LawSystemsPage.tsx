@@ -21,7 +21,7 @@ export function LawSystemsPage(): JSX.Element {
   if (!laws.length) return <EmptyState icon="⌘" title="尚未建立法規" description="先匯入法規與條文，系統就會自動產生體系圖。" />
 
   return <div className="page-stack">
-    <PageHeader eyebrow="SYSTEM MAP / 法規骨架" title="法規體系圖" description="先熟悉編、章、節與條文位置，再進入逐條背誦；體系圖會直接使用已匯入的官方章節資料。" actions={<Link className="button button-primary" to={`/training/${articles[0]?.id ?? ''}`}>從第一條開始訓練</Link>} />
+    <PageHeader eyebrow="SYSTEM MAP / 法規骨架" title="法規體系圖" description="先熟悉編、章、節與條文位置，再進入逐條背誦；依官方標題與法條順序呈現，不臆測官方資料未提供的上層標題。" actions={<Link className="button button-primary" to={`/training/${articles[0]?.id ?? ''}`}>從第一條開始訓練</Link>} />
     <section className="system-map-toolbar card">
       <label>選擇法規<select value={selectedLaw?.id} onChange={(event) => { window.location.hash = `#/systems/${event.target.value}`; setExpanded(new Set()) }}>{laws.map((law) => <option value={law.id} key={law.id}>{law.category}｜{law.name}</option>)}</select></label>
       <div className="system-map-stats"><div><strong>{map.articleCount}</strong><span>條文</span></div><div><strong>{map.nodeCount}</strong><span>體系節點</span></div><div><strong>{Math.round(average)}%</strong><span>熟練度</span></div></div>
