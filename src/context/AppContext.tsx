@@ -18,8 +18,9 @@ import type {
   TrainingMode,
   UserProgress,
 } from '../types'
-import { clearStore, getAll, put, putMany, readSnapshot, remove, STORE_NAMES, type DatabaseSnapshot } from '../lib/db'
+import { clearStore, getAll, put, putLawImportBatch, putMany, readSnapshot, remove, STORE_NAMES, type DatabaseSnapshot } from '../lib/db'
 import { createBackup, parseBackup } from '../lib/backup'
+import { presetScopeNote, type ExamPresetBundle, type ExamPresetImportResult } from '../lib/examPreset'
 import { normalizeArticleNumber, splitIntoSections } from '../lib/importer'
 import { applyReadToMastery, createInitialMastery, updateMastery } from '../lib/mastery'
 import { calculateNextReview } from '../lib/scheduler'
@@ -63,6 +64,7 @@ interface AppContextValue extends AppState {
   updateLaw: (law: LawCollection) => Promise<void>
   deleteLaw: (lawId: string) => Promise<void>
   saveImportedArticles: (lawId: string, drafts: ImportArticleDraft[]) => Promise<void>
+  importExamPreset: (bundle: ExamPresetBundle) => Promise<ExamPresetImportResult>
   updateArticle: (article: LawArticle) => Promise<void>
   deleteArticle: (articleId: string) => Promise<void>
   markRead: (articleId: string, durationSeconds?: number) => Promise<void>
@@ -202,6 +204,99 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
     await putMany(STORE_NAMES.articles, articles)
     await putMany(STORE_NAMES.sections, sections)
     await loadState()
+  }, [loadState, state])
+
+  const importExamPreset = useCallback(async (bundle: ExamPresetBundle): Promise<ExamPresetImportResult> => {
+    const current = requireState(state)
+    if (!bundle.laws.length) throw new Error('國考預設沒有可匯入的法規。')
+    const timestamp = nowIso()
+    const laws: LawCollection[] = []
+    const articles: LawArticle[] = []
+    const sections: ArticleSection[] = []
+    const lawIds: string[] = []
+    let lawsCreated = 0
+    let lawsUpdated = 0
+    let articlesSkipped = 0
+
+    for (const item of bundle.laws) {
+      const matchingLaws = current.laws.filter((law) => law.source?.lawCode === item.summary.code
+        || normalizeLawName(law.name) === normalizeLawName(item.summary.name))
+      const existingLaw = matchingLaws.find((law) => !law.deletedAt) ?? matchingLaws[0]
+      const scopeNote = presetScopeNote(bundle.definition, item.spec)
+      const law: LawCollection = existingLaw
+        ? {
+            ...existingLaw,
+            name: item.summary.name,
+            shortName: item.spec.shortName,
+            category: item.spec.subject,
+            importance: Math.max(existingLaw.importance, 4) as 1 | 2 | 3 | 4 | 5,
+            examScope: true,
+            notes: appendNote(existingLaw.notes, scopeNote),
+            source: item.drafts[0]?.source ?? existingLaw.source,
+            updatedAt: timestamp,
+            deletedAt: undefined,
+          }
+        : {
+            id: makeId('law'),
+            name: item.summary.name,
+            shortName: item.spec.shortName,
+            category: item.spec.subject,
+            importance: 4,
+            examScope: true,
+            notes: scopeNote,
+            source: item.drafts[0]?.source,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          }
+      if (existingLaw) lawsUpdated += 1
+      else lawsCreated += 1
+      laws.push(law)
+      lawIds.push(law.id)
+
+      const seenNumbers = new Set(current.articles
+        .filter((article) => article.lawId === law.id && !article.deletedAt)
+        .map((article) => normalizeArticleNumber(article.articleNumber)))
+      for (const draft of item.drafts) {
+        const number = draft.articleNumber.trim() || '未編號'
+        const numberKey = normalizeArticleNumber(number)
+        if (seenNumbers.has(numberKey)) {
+          articlesSkipped += 1
+          continue
+        }
+        if (!draft.text.trim()) throw new Error(`「${item.summary.name}」第 ${number} 條內容空白，本次未寫入任何資料。`)
+        seenNumbers.add(numberKey)
+        const article: LawArticle = {
+          id: makeId('article'),
+          lawId: law.id,
+          articleNumber: number,
+          title: draft.title.trim(),
+          text: draft.text.trim(),
+          notes: draft.notes.trim(),
+          importance: draft.importance,
+          mustMemorize: draft.mustMemorize,
+          includeDaily: draft.includeDaily,
+          tags: [],
+          isBoss: false,
+          source: draft.source,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        }
+        articles.push(article)
+        sections.push(...splitIntoSections(article.text, article.id))
+      }
+    }
+
+    await putLawImportBatch({ laws, articles, sections })
+    await loadState()
+    return {
+      lawIds,
+      lawsCreated,
+      lawsUpdated,
+      articlesAdded: articles.length,
+      articlesSkipped,
+      deletedArticlesSkipped: bundle.laws.reduce((sum, law) => sum + law.deletedArticleCount, 0),
+      dataUpdatedAt: bundle.officialSource.dataUpdatedAt,
+    }
   }, [loadState, state])
 
   const updateArticle = useCallback(async (article: LawArticle): Promise<void> => {
@@ -381,8 +476,8 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
 
   const value = useMemo<AppContextValue | undefined>(() => {
     if (!state) return undefined
-    return { ...state, loading, error, refresh, createLaw, updateLaw, deleteLaw, saveImportedArticles, updateArticle, deleteArticle, markRead, submitTraining, updateSettings, exportBackup, restoreBackup, resetSystem, loadDemoData, toggleTask, createConfusionGroup, deleteConfusionGroup }
-  }, [createConfusionGroup, createLaw, deleteArticle, deleteConfusionGroup, deleteLaw, error, exportBackup, loadDemoData, loading, markRead, refresh, resetSystem, restoreBackup, saveImportedArticles, state, submitTraining, toggleTask, updateArticle, updateLaw, updateSettings])
+    return { ...state, loading, error, refresh, createLaw, updateLaw, deleteLaw, saveImportedArticles, importExamPreset, updateArticle, deleteArticle, markRead, submitTraining, updateSettings, exportBackup, restoreBackup, resetSystem, loadDemoData, toggleTask, createConfusionGroup, deleteConfusionGroup }
+  }, [createConfusionGroup, createLaw, deleteArticle, deleteConfusionGroup, deleteLaw, error, exportBackup, importExamPreset, loadDemoData, loading, markRead, refresh, resetSystem, restoreBackup, saveImportedArticles, state, submitTraining, toggleTask, updateArticle, updateLaw, updateSettings])
 
   if (!value) return <div className="boot-screen"><div className="boot-mark">法典</div><p>{loading ? '正在開啟本機資料庫…' : error ?? '尚未準備好。'}</p><div className="boot-spinner" /></div>
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
@@ -397,6 +492,15 @@ export function useAppData(): AppContextValue {
 function requireState(value: AppState | null): AppState {
   if (!value) throw new Error('本機資料尚未準備完成，請稍候再試。')
   return value
+}
+
+function normalizeLawName(value: string): string {
+  return value.trim().toLocaleLowerCase('zh-Hant').replace(/[\s　]/g, '')
+}
+
+function appendNote(existing: string, note: string): string {
+  if (existing.includes(note)) return existing
+  return [existing.trim(), note].filter(Boolean).join('\n')
 }
 
 function toErrorMessage(value: unknown): string {

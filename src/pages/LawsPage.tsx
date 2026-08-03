@@ -5,7 +5,8 @@ import { useAppData } from '../context/AppContext'
 import type { LawCollection } from '../types'
 import { formatDateTW } from '../lib/utils'
 
-const categories = ['警察法', '警察職權行使法', '警械使用條例', '社會秩序維護法', '其他']
+const examCategories = ['憲法', '警察法規', '刑法', '刑事訴訟法']
+const categories = [...examCategories, '其他']
 
 export function LawsPage(): JSX.Element {
   const data = useAppData()
@@ -13,6 +14,12 @@ export function LawsPage(): JSX.Element {
   const [editing, setEditing] = useState<LawCollection | null>(null)
   const [message, setMessage] = useState('')
   const laws = data.laws.filter((law) => !law.deletedAt)
+  const lawGroups = useMemo(() => {
+    const groups = examCategories.map((category) => ({ category, laws: laws.filter((law) => law.category === category) }))
+    const otherLaws = laws.filter((law) => !examCategories.includes(law.category))
+    if (otherLaws.length) groups.push({ category: '其他', laws: otherLaws })
+    return groups.filter((group) => group.laws.length)
+  }, [laws])
 
   async function removeLaw(law: LawCollection): Promise<void> {
     if (!window.confirm(`確定要刪除「${law.name}」嗎？系統會採封存方式保留相關作答證據。`)) return
@@ -23,7 +30,7 @@ export function LawsPage(): JSX.Element {
     <PageHeader eyebrow="LIBRARY / 法規資料庫" title="法規管理" description="可手動建立法規，或到法條瀏覽頁搜尋全國法規資料庫並挑選條文。" actions={<Button onClick={() => setShowCreate(true)}>＋ 建立法規</Button>} />
     {message && <Notice tone="info">{message}</Notice>}
     <div className="library-summary"><div><span>啟用法規</span><strong>{laws.length}</strong></div><div><span>已匯入法條</span><strong>{data.articles.filter((article) => !article.deletedAt).length}</strong></div><div><span>考試範圍</span><strong>{laws.filter((law) => law.examScope).length}</strong></div><div><span>高重要度</span><strong>{laws.filter((law) => law.importance >= 4).length}</strong></div></div>
-    {laws.length ? <div className="law-grid">{laws.map((law) => <LawCard key={law.id} law={law} onEdit={() => setEditing(law)} onDelete={() => void removeLaw(law)} />)}</div> : <EmptyState icon="⌘" title="還沒有法規資料" description="建立法規後，再到法條瀏覽頁貼上或匯入法條。" action={<Button onClick={() => setShowCreate(true)}>建立第一部法規</Button>} />}
+    {laws.length ? <div className="law-category-stack">{lawGroups.map((group) => <section className="law-category-section" key={group.category}><div className="law-category-heading"><div><p className="eyebrow">EXAM SUBJECT / 考科</p><h2>{group.category}</h2></div><span>{group.laws.length} 部法規 · {data.articles.filter((article) => !article.deletedAt && group.laws.some((law) => law.id === article.lawId)).length.toLocaleString('zh-TW')} 條</span></div><div className="law-grid">{group.laws.map((law) => <LawCard key={law.id} law={law} onEdit={() => setEditing(law)} onDelete={() => void removeLaw(law)} />)}</div></section>)}</div> : <EmptyState icon="⌘" title="還沒有法規資料" description="建立法規後，再到法條瀏覽頁貼上或匯入法條。" action={<Button onClick={() => setShowCreate(true)}>建立第一部法規</Button>} />}
     {showCreate && <Modal title="建立法規" onClose={() => setShowCreate(false)}><LawForm onSubmit={async (input) => { try { await data.createLaw(input); setShowCreate(false); setMessage('法規已建立。') } catch (error) { setMessage(error instanceof Error ? error.message : '建立法規失敗。') } }} onCancel={() => setShowCreate(false)} /></Modal>}
     {editing && <Modal title="編輯法規" onClose={() => setEditing(null)}><LawForm initial={editing} onSubmit={async (input) => { try { await data.updateLaw({ ...editing, ...input }); setEditing(null); setMessage('法規已更新。') } catch (error) { setMessage(error instanceof Error ? error.message : '更新法規失敗。') } }} onCancel={() => setEditing(null)} /></Modal>}
   </div>

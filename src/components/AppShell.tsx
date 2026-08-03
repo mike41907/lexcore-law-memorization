@@ -33,7 +33,7 @@ export function AppShell(): JSX.Element {
           <div className="brand-mark">法</div>
           <div>
             <p className="brand-name">法典</p>
-            <p className="brand-subtitle">LEXCORE / 0.2.0</p>
+            <p className="brand-subtitle">LEXCORE / 0.3.0</p>
           </div>
         </div>
         <div className="profile-strip">

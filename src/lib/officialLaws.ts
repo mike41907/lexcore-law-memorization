@@ -57,11 +57,23 @@ export async function fetchOfficialLawIndex(): Promise<OfficialLawIndex> {
 }
 
 export async function fetchOfficialLawDetail(summary: OfficialLawSummary): Promise<OfficialLawDetail> {
-  const payload = await fetchOfficialJson(`official/shards/${summary.shard}`)
-  const shard = parseOfficialLawShard(payload)
-  const detail = shard.laws.find((law) => law.code === summary.code)
-  if (!detail) throw new Error('官方法規分片中找不到這部法規，請重新整理資料後再試。')
+  const [detail] = await fetchOfficialLawDetails([summary])
   return detail
+}
+
+export async function fetchOfficialLawDetails(summaries: OfficialLawSummary[]): Promise<OfficialLawDetail[]> {
+  const shardRequests = new Map<string, Promise<OfficialLawShard>>()
+  for (const summary of summaries) {
+    if (!shardRequests.has(summary.shard)) {
+      shardRequests.set(summary.shard, fetchOfficialJson(`official/shards/${summary.shard}`).then(parseOfficialLawShard))
+    }
+  }
+  return Promise.all(summaries.map(async (summary) => {
+    const shard = await shardRequests.get(summary.shard)
+    const detail = shard?.laws.find((law) => law.code === summary.code)
+    if (!detail) throw new Error(`官方法規分片中找不到「${summary.name}」，請重新整理資料後再試。`)
+    return detail
+  }))
 }
 
 export function parseOfficialLawIndex(value: unknown): OfficialLawIndex {

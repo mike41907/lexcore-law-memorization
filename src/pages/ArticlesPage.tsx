@@ -1,10 +1,12 @@
 import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { ExamPresetImporter } from '../components/ExamPresetImporter'
 import { OfficialLawImporter } from '../components/OfficialLawImporter'
 import { Button, EmptyState, Modal, Notice, PageHeader, ProgressBar, Stars, StatusBadge } from '../components/ui'
 import { useAppData } from '../context/AppContext'
 import type { ImportArticleDraft, LawArticle } from '../types'
 import type { OfficialLawDataSource, OfficialLawSummary } from '../lib/officialLaws'
+import { POLICE_SERGEANT_EXAM_PRESET, type ExamPresetBundle, type ExamPresetImportResult } from '../lib/examPreset'
 import { parseJsonImport, splitLawText } from '../lib/importer'
 import { formatDateTimeTW } from '../lib/utils'
 
@@ -26,6 +28,10 @@ export function ArticlesPage(): JSX.Element {
   const [viewing, setViewing] = useState<LawArticle | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const selectedLaw = activeLaws.find((law) => law.id === selectedLawId)
+  const presetLawNames = useMemo(() => new Set(POLICE_SERGEANT_EXAM_PRESET.laws.map((law) => normalizeName(law.name))), [])
+  const presetLaws = activeLaws.filter((law) => presetLawNames.has(normalizeName(law.name)))
+  const presetLawIds = new Set(presetLaws.map((law) => law.id))
+  const presetArticleCount = data.articles.filter((article) => !article.deletedAt && presetLawIds.has(article.lawId)).length
   const articles = useMemo(() => data.articles.filter((article) => article.lawId === selectedLawId
     && !article.deletedAt
     && (article.articleNumber.includes(search) || article.text.includes(search) || article.title.includes(search))), [data.articles, search, selectedLawId])
@@ -89,6 +95,12 @@ export function ArticlesPage(): JSX.Element {
     window.setTimeout(() => document.getElementById('import-preview')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
   }
 
+  async function importExamPreset(bundle: ExamPresetBundle): Promise<ExamPresetImportResult> {
+    const result = await data.importExamPreset(bundle)
+    if (result.lawIds[0]) changeLaw(result.lawIds[0])
+    return result
+  }
+
   function updateDraft(index: number, patch: Partial<ImportArticleDraft>): void {
     setPreview((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item))
   }
@@ -147,7 +159,7 @@ export function ArticlesPage(): JSX.Element {
         <button type="button" role="tab" aria-selected={importKind === 'json'} className={importKind === 'json' ? 'selected' : ''} onClick={() => setImportKind('json')}>JSON</button>
       </div>
       {importKind === 'official'
-        ? <OfficialLawImporter localLaws={activeLaws} localArticles={data.articles} onPrepare={prepareOfficialImport} />
+        ? <div className="official-import-stack"><ExamPresetImporter existingLawCount={presetLaws.length} existingArticleCount={presetArticleCount} onImport={importExamPreset} /><OfficialLawImporter localLaws={activeLaws} localArticles={data.articles} onPrepare={prepareOfficialImport} /></div>
         : activeLaws.length
           ? <div className="manual-import-panel"><textarea className="import-textarea" value={input} onChange={(event) => setInput(event.target.value)} placeholder={importPlaceholder} /><div className="import-actions"><input ref={fileInput} type="file" accept=".txt,.json,text/plain,application/json" hidden onChange={(event) => void readFile(event)} /><Button variant="secondary" onClick={() => fileInput.current?.click()}>選擇檔案</Button><Button onClick={generatePreview}>產生拆分預覽</Button></div></div>
           : <Notice tone="warning"><div>TXT 與 JSON 必須先指定本機法規；你也可以切回「全國法規資料庫」，系統會在選取條文時自動建立法規。</div><Button variant="ghost" onClick={() => navigate('/laws')}>前往法規管理</Button></Notice>}

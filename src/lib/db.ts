@@ -108,6 +108,18 @@ export async function putMany<T extends { id: string }>(storeName: StoreName, va
   await transactionDone(transaction)
 }
 
+export async function putLawImportBatch(input: { laws: LawCollection[]; articles: LawArticle[]; sections: ArticleSection[] }): Promise<void> {
+  const database = await openDatabase()
+  const transaction = database.transaction([STORE_NAMES.laws, STORE_NAMES.articles, STORE_NAMES.sections], 'readwrite')
+  const lawStore = transaction.objectStore(STORE_NAMES.laws)
+  const articleStore = transaction.objectStore(STORE_NAMES.articles)
+  const sectionStore = transaction.objectStore(STORE_NAMES.sections)
+  input.laws.forEach((law) => lawStore.put(law))
+  input.articles.forEach((article) => articleStore.put(article))
+  input.sections.forEach((section) => sectionStore.put(section))
+  await transactionDone(transaction)
+}
+
 export async function remove(storeName: StoreName, id: string): Promise<void> {
   const database = await openDatabase()
   const transaction = database.transaction(storeName, 'readwrite')
