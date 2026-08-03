@@ -19,21 +19,22 @@ function summary(name: string, index: number): OfficialLawSummary {
 }
 
 describe('police sergeant exam preset', () => {
-  it('resolves the eight current laws in preset order', () => {
+  it('resolves the current laws and official police sublaws in preset order', () => {
     const laws = [...POLICE_SERGEANT_EXAM_PRESET.laws].reverse().map((spec, index) => summary(spec.name, index))
     const index: OfficialLawIndex = { schemaVersion: 1, source, laws }
     expect(resolvePresetSummaries(index, POLICE_SERGEANT_EXAM_PRESET).map((law) => law.name)).toEqual(POLICE_SERGEANT_EXAM_PRESET.laws.map((law) => law.name))
   })
 
   it('builds categorized drafts and excludes deleted article placeholders', () => {
-    const summaries = POLICE_SERGEANT_EXAM_PRESET.laws.map((spec, index) => summary(spec.name, index))
+    const sourceSummaries = POLICE_SERGEANT_EXAM_PRESET.laws.map((spec, index) => summary(spec.name, index))
+    const index: OfficialLawIndex = { schemaVersion: 1, source, laws: sourceSummaries }
+    const summaries = resolvePresetSummaries(index, POLICE_SERGEANT_EXAM_PRESET)
     const details: OfficialLawDetail[] = summaries.map((law) => ({ code: law.code, articles: [
       { number: '第 1 條', content: `${law.name}第一條。`, heading: '第一章' },
       { number: '第 2 條', content: '（刪除）', heading: '' },
     ] }))
-    const index: OfficialLawIndex = { schemaVersion: 1, source, laws: summaries }
     const bundle = buildExamPresetBundle(index, POLICE_SERGEANT_EXAM_PRESET, summaries, details, '2026-08-03T01:02:03.000Z')
-    expect(bundle.laws).toHaveLength(8)
+    expect(bundle.laws).toHaveLength(10)
     expect(bundle.laws.every((law) => law.drafts.length === 1 && law.deletedArticleCount === 1)).toBe(true)
     expect(bundle.laws[0].spec.subject).toBe('憲法')
     expect(bundle.laws[2].spec.subject).toBe('警察法規')

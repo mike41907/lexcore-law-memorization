@@ -1,13 +1,14 @@
 {
   "name": "lexcore-law-memorization",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "packageManager": "pnpm@11.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "fetch:laws": "node scripts/fetch-moj-laws.mjs",
+    "fetch:police-commands": "node scripts/fetch-moj-commands.mjs",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
     "test:watch": "vitest"

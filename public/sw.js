@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lexcore-v0.5.0'
+const CACHE_NAME = 'lexcore-v0.6.0'
 const SCOPE_URL = self.registration.scope
 const INDEX_URL = new URL('index.html', SCOPE_URL).href
 const APP_SHELL = [
@@ -7,6 +7,8 @@ const APP_SHELL = [
   new URL('manifest.webmanifest', SCOPE_URL).href,
   new URL('icon.svg', SCOPE_URL).href,
   new URL('version.json', SCOPE_URL).href,
+  new URL('official/commands/D0080070.json', SCOPE_URL).href,
+  new URL('official/commands/D0080076.json', SCOPE_URL).href,
 ]
 
 self.addEventListener('install', (event) => {

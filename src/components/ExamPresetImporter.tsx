@@ -54,7 +54,7 @@ export function ExamPresetImporter({ existingLawCount, existingArticleCount, onI
     </div>
 
     <div className="exam-preset-foot">
-      <div><p>同名法規會歸入四科；相同條號保留既有資料，只補缺漏，官方標示「刪除」的條文不匯入。</p><a href={POLICE_SERGEANT_EXAM_PRESET.sourceUrl} target="_blank" rel="noreferrer">查看中央警察大學官方簡章 ↗</a></div>
+      <div><p>同名法規會歸入四科；相同條號保留既有資料，只補缺漏。警察法規另含現行官方子法，匯入時會直接讀取法務部法規頁面。</p><a href={POLICE_SERGEANT_EXAM_PRESET.sourceUrl} target="_blank" rel="noreferrer">查看中央警察大學官方簡章 ↗</a></div>
       <Button variant="gold" disabled={busy} onClick={() => void importPreset()}>{busy ? '正在取得並整理官方法條…' : existingLawCount >= POLICE_SERGEANT_EXAM_PRESET.laws.length ? '補齊缺漏並套用四科分類' : '建立四科分類並匯入法條'}</Button>
     </div>
 

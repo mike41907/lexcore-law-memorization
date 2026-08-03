@@ -8,6 +8,7 @@ import {
   type OfficialLawIndex,
   type OfficialLawSummary,
 } from './officialLaws'
+import { createOfficialCommandSummary, fetchOfficialCommandDetail, POLICE_SUBLAW_COMMANDS } from './officialCommands'
 
 export type ExamSubject = '憲法' | '警察法規' | '刑法' | '刑事訴訟法'
 
@@ -16,6 +17,8 @@ export interface ExamPresetLawSpec {
   shortName: string
   subject: ExamSubject
   paperName: string
+  sourceType?: 'law' | 'command'
+  sourceCode?: string
 }
 
 export interface ExamPresetDefinition {
@@ -65,6 +68,8 @@ export const POLICE_SERGEANT_EXAM_PRESET: ExamPresetDefinition = {
     { name: '社會秩序維護法', shortName: '社維法', subject: '警察法規', paperName: '警察法規' },
     { name: '警械使用條例', shortName: '警械條例', subject: '警察法規', paperName: '警察法規' },
     { name: '警察職權行使法', shortName: '警職法', subject: '警察法規', paperName: '警察法規' },
+    { name: '違反社會秩序維護法案件處理辦法', shortName: '社維法處理辦法', subject: '警察法規', paperName: '警察法規', sourceType: 'command', sourceCode: 'D0080070' },
+    { name: '地方法院與警察機關處理違反社會秩序維護法案件聯繫辦法', shortName: '社維法聯繫辦法', subject: '警察法規', paperName: '警察法規', sourceType: 'command', sourceCode: 'D0080076' },
     { name: '中華民國刑法', shortName: '刑法', subject: '刑法', paperName: '刑法及刑事訴訟法' },
     { name: '刑事訴訟法', shortName: '刑訴', subject: '刑事訴訟法', paperName: '刑法及刑事訴訟法' },
   ],
@@ -73,12 +78,19 @@ export const POLICE_SERGEANT_EXAM_PRESET: ExamPresetDefinition = {
 export async function loadPoliceSergeantExamPreset(): Promise<ExamPresetBundle> {
   const index = await fetchOfficialLawIndex()
   const summaries = resolvePresetSummaries(index, POLICE_SERGEANT_EXAM_PRESET)
-  const details = await fetchOfficialLawDetails(summaries)
+  const details = await Promise.all(summaries.map((summary, position) => POLICE_SERGEANT_EXAM_PRESET.laws[position].sourceType === 'command'
+    ? fetchOfficialCommandDetail(summary)
+    : fetchOfficialLawDetails([summary]).then((items) => items[0])))
   return buildExamPresetBundle(index, POLICE_SERGEANT_EXAM_PRESET, summaries, details)
 }
 
 export function resolvePresetSummaries(index: OfficialLawIndex, definition: ExamPresetDefinition): OfficialLawSummary[] {
   return definition.laws.map((spec) => {
+    if (spec.sourceType === 'command') {
+      const command = POLICE_SUBLAW_COMMANDS.find((item) => item.code === spec.sourceCode)
+      if (!command) throw new Error(`預設子法「${spec.name}」尚未設定官方來源，本次未寫入任何資料。`)
+      return createOfficialCommandSummary(command)
+    }
     const summary = index.laws.find((law) => law.status === 'current' && normalizeName(law.name) === normalizeName(spec.name))
     if (!summary) throw new Error(`官方資料中找不到現行「${spec.name}」，本次未寫入任何資料。`)
     return summary
