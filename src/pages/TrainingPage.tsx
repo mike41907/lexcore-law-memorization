@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Button, ModeBadge, Notice, PageHeader, ProgressBar, StatusBadge } from '../components/ui'
 import { useAppData } from '../context/AppContext'
 import type { ComparisonResult, LawArticle, SubmissionResult, TrainingMode } from '../types'
@@ -9,6 +9,7 @@ import { createLegalQuizQuestions, type LegalQuizQuestion } from '../lib/legalQu
 import { extractKeywordTraps, type KeywordTrap } from '../lib/keywordTraining'
 import { formatRelativeReview } from '../lib/utils'
 import { compareTrainingPriority } from '../lib/tasks'
+import { KnowledgePointTraining } from '../components/KnowledgePointTraining'
 
 const modes: Array<{ value: TrainingMode; label: string; description: string }> = [
   { value: 'reading', label: '01 全文閱讀', description: '先完整閱讀原文，建立條文的整體架構。' },
@@ -22,6 +23,7 @@ export function TrainingPage(): JSX.Element {
   const data = useAppData()
   const navigate = useNavigate()
   const { articleId } = useParams()
+  const [searchParams] = useSearchParams()
   const articles = useMemo(() => {
     const activeLawIds = new Set(data.laws.filter((law) => !law.deletedAt).map((law) => law.id))
     return data.articles.filter((article) => !article.deletedAt && activeLawIds.has(article.lawId)).sort(compareTrainingPriority)
@@ -57,6 +59,9 @@ export function TrainingPage(): JSX.Element {
   const keywordTrap = keywordTraps[keywordIndex]
   const legalQuestion = legalQuestions[legalQuestionIndex]
   const selectableArticles = mode === 'numbers' ? numericRows.map((row) => row.article) : mode === 'keywords' ? articles.filter((item) => extractKeywordTraps(item.text).length > 0) : articles
+  const selectedPoint = data.knowledgePoints.find((point) => point.id === searchParams.get('point') && !point.deletedAt)
+  const selectedPointQuestions = selectedPoint ? data.knowledgeQuestions.filter((question) => question.knowledgePointId === selectedPoint.id && question.isActive) : []
+  const selectedPointMastery = selectedPoint ? data.knowledgeMastery.find((item) => item.knowledgePointId === selectedPoint.id) : undefined
 
   useEffect(() => {
     if (articleId && articleId !== selectedId) setSelectedId(articleId)
@@ -222,6 +227,10 @@ export function TrainingPage(): JSX.Element {
 
   if (!articles.length || !article) {
     return <div className="page-stack"><PageHeader eyebrow="TRAINING / 訓練模式" title="開始訓練" description="請先匯入至少一條已校對的法條原文。" /><div className="empty-state card"><div className="empty-icon">✦</div><h3>尚無可訓練法條</h3><p>法條資料會留在本機 IndexedDB，不需要登入或網路。</p><Button onClick={() => navigate('/articles')}>前往法條瀏覽</Button></div></div>
+  }
+
+  if (selectedPoint && selectedPoint.articleId === article.id) {
+    return <KnowledgePointTraining article={article} point={selectedPoint} questions={selectedPointQuestions} mastery={selectedPointMastery} />
   }
 
   return <div className="page-stack training-page">

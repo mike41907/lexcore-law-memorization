@@ -9,13 +9,17 @@ import type {
   LawArticle,
   LawCollection,
   MasteryRecord,
+  KnowledgeMastery,
+  KnowledgePoint,
+  KnowledgeQuestion,
+  KnowledgeReview,
   ReviewSchedule,
   StudySession,
   UserProgress,
 } from '../types'
 
 export const DB_NAME = 'lexcore-local'
-export const DB_VERSION = 1
+export const DB_VERSION = 2
 
 export const STORE_NAMES = {
   settings: 'settings',
@@ -31,6 +35,10 @@ export const STORE_NAMES = {
   achievements: 'achievements',
   confusions: 'confusions',
   progress: 'progress',
+  knowledgePoints: 'knowledgePoints',
+  knowledgeQuestions: 'knowledgeQuestions',
+  knowledgeMastery: 'knowledgeMastery',
+  knowledgeReviews: 'knowledgeReviews',
 } as const
 
 export type StoreName = (typeof STORE_NAMES)[keyof typeof STORE_NAMES]
@@ -62,6 +70,10 @@ export function openDatabase(): Promise<IDBDatabase> {
       if (!database.objectStoreNames.contains(STORE_NAMES.achievements)) createStore(database, STORE_NAMES.achievements, [['key', 'key']])
       if (!database.objectStoreNames.contains(STORE_NAMES.confusions)) createStore(database, STORE_NAMES.confusions)
       if (!database.objectStoreNames.contains(STORE_NAMES.progress)) createStore(database, STORE_NAMES.progress)
+      if (!database.objectStoreNames.contains(STORE_NAMES.knowledgePoints)) createStore(database, STORE_NAMES.knowledgePoints, [['articleId', 'articleId'], ['type', 'type']])
+      if (!database.objectStoreNames.contains(STORE_NAMES.knowledgeQuestions)) createStore(database, STORE_NAMES.knowledgeQuestions, [['knowledgePointId', 'knowledgePointId'], ['articleId', 'articleId']])
+      if (!database.objectStoreNames.contains(STORE_NAMES.knowledgeMastery)) createStore(database, STORE_NAMES.knowledgeMastery, [['knowledgePointId', 'knowledgePointId'], ['articleId', 'articleId']])
+      if (!database.objectStoreNames.contains(STORE_NAMES.knowledgeReviews)) createStore(database, STORE_NAMES.knowledgeReviews, [['knowledgePointId', 'knowledgePointId'], ['articleId', 'articleId'], ['nextReviewAt', 'nextReviewAt']])
     }
     request.onsuccess = () => {
       const database = request.result
@@ -156,10 +168,14 @@ export interface DatabaseSnapshot {
   achievements: Achievement[]
   confusions: ConfusionGroup[]
   progress: UserProgress[]
+  knowledgePoints: KnowledgePoint[]
+  knowledgeQuestions: KnowledgeQuestion[]
+  knowledgeMastery: KnowledgeMastery[]
+  knowledgeReviews: KnowledgeReview[]
 }
 
 export async function readSnapshot(): Promise<DatabaseSnapshot> {
-  const [settings, laws, articles, sections, sessions, answers, errors, reviews, mastery, tasks, achievements, confusions, progress] = await Promise.all([
+  const [settings, laws, articles, sections, sessions, answers, errors, reviews, mastery, tasks, achievements, confusions, progress, knowledgePoints, knowledgeQuestions, knowledgeMastery, knowledgeReviews] = await Promise.all([
     getAll<AppSettings>(STORE_NAMES.settings),
     getAll<LawCollection>(STORE_NAMES.laws),
     getAll<LawArticle>(STORE_NAMES.articles),
@@ -173,6 +189,10 @@ export async function readSnapshot(): Promise<DatabaseSnapshot> {
     getAll<Achievement>(STORE_NAMES.achievements),
     getAll<ConfusionGroup>(STORE_NAMES.confusions),
     getAll<UserProgress>(STORE_NAMES.progress),
+    getAll<KnowledgePoint>(STORE_NAMES.knowledgePoints),
+    getAll<KnowledgeQuestion>(STORE_NAMES.knowledgeQuestions),
+    getAll<KnowledgeMastery>(STORE_NAMES.knowledgeMastery),
+    getAll<KnowledgeReview>(STORE_NAMES.knowledgeReviews),
   ])
-  return { settings, laws, articles, sections, sessions, answers, errors, reviews, mastery, tasks, achievements, confusions, progress }
+  return { settings, laws, articles, sections, sessions, answers, errors, reviews, mastery, tasks, achievements, confusions, progress, knowledgePoints, knowledgeQuestions, knowledgeMastery, knowledgeReviews }
 }

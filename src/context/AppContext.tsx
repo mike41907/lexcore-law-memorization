@@ -10,6 +10,10 @@ import type {
   DailyTask,
   ErrorRecord,
   ImportArticleDraft,
+  KnowledgeMastery,
+  KnowledgePoint,
+  KnowledgeQuestion,
+  KnowledgeReview,
   LawArticle,
   LawCollection,
   MasteryRecord,
@@ -25,6 +29,7 @@ import { normalizeArticleNumber, splitIntoSections } from '../lib/importer'
 import { applyReadToMastery, createInitialMastery, updateMastery } from '../lib/mastery'
 import { calculateNextReview } from '../lib/scheduler'
 import { generateDailyTasks } from '../lib/tasks'
+import { generateKnowledgeDailyTasks } from '../lib/tasks'
 import { createDemoData } from '../lib/sampleData'
 import { compareText } from '../lib/compare'
 import { DEFAULT_PROGRESS, DEFAULT_SETTINGS, ACHIEVEMENT_DEFINITIONS } from '../types'
@@ -33,6 +38,7 @@ import { extractStoppedConstitutionArticleNumbers, findStoppedConstitutionArticl
 import { applyCriminalProcedureFrequency } from '../lib/criminalProcedureFrequency'
 import { classifyExamSubject, classifyLawType, migrateLawCollectionsToExamSubjects } from '../lib/examSubjects'
 import type { ExamSubject, LawType } from '../types'
+import { buildKnowledgePoints, createInitialKnowledgeMastery, createInitialKnowledgeReview, generateKnowledgeQuestions, scoreKnowledgeAnswer, updateKnowledgeMastery, updateKnowledgeReview } from '../lib/knowledgePointEngine'
 
 export interface AppState {
   settings: AppSettings
@@ -48,6 +54,10 @@ export interface AppState {
   achievements: Achievement[]
   confusions: ConfusionGroup[]
   progress: UserProgress
+  knowledgePoints: KnowledgePoint[]
+  knowledgeQuestions: KnowledgeQuestion[]
+  knowledgeMastery: KnowledgeMastery[]
+  knowledgeReviews: KnowledgeReview[]
 }
 
 interface CreateLawInput {
@@ -71,6 +81,16 @@ interface SubmitTrainingInput {
   originalText?: string
   comparisonText?: string
   requireExact?: boolean
+  knowledgePointId?: string
+  questionId?: string
+}
+
+interface SubmitKnowledgeInput {
+  point: KnowledgePoint
+  question: KnowledgeQuestion
+  answer: string
+  durationSeconds: number
+  usedHints?: number
 }
 
 interface AppContextValue extends AppState {
@@ -86,6 +106,12 @@ interface AppContextValue extends AppState {
   deleteArticle: (articleId: string) => Promise<void>
   markRead: (articleId: string, durationSeconds?: number) => Promise<void>
   submitTraining: (input: SubmitTrainingInput) => Promise<{ answer: AnswerRecord; mastery: MasteryRecord; review: ReviewSchedule; unlockedAchievements: Achievement[] }>
+  submitKnowledgeQuestion: (input: SubmitKnowledgeInput) => Promise<{ score: number; mastery: KnowledgeMastery; review: KnowledgeReview }>
+  createKnowledgePoint: (input: Omit<KnowledgePoint, 'id' | 'createdAt' | 'updatedAt'>) => Promise<KnowledgePoint>
+  updateKnowledgePoint: (point: KnowledgePoint) => Promise<void>
+  deleteKnowledgePoint: (pointId: string) => Promise<void>
+  mergeKnowledgePoints: (pointIds: string[]) => Promise<void>
+  splitKnowledgePoint: (pointId: string, names: string[]) => Promise<void>
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>
   exportBackup: () => Promise<BackupData>
   restoreBackup: (raw: string, mode: 'overwrite' | 'merge') => Promise<void>
@@ -130,6 +156,18 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
       if (!snapshot.settings[0]) await put(STORE_NAMES.settings, settings)
       if (!snapshot.progress[0]) await put(STORE_NAMES.progress, progress)
 
+      const knowledge = await ensureKnowledgeLayer({
+        articles,
+        sections: snapshot.sections,
+        existingPoints: snapshot.knowledgePoints,
+        existingQuestions: snapshot.knowledgeQuestions,
+        existingMastery: snapshot.knowledgeMastery,
+        existingReviews: snapshot.knowledgeReviews,
+        articleMastery: snapshot.mastery,
+        articleReviews: snapshot.reviews,
+        settings,
+      })
+
       const date = todayKey()
       let tasks = snapshot.tasks.filter((task) => !stoppedIds.has(task.articleId))
       if (frequencyEnrichment.changed.length) {
@@ -141,9 +179,11 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
         }
       }
       if (articles.some((article) => !article.deletedAt)) {
-        const generated = generateDailyTasks(articles, snapshot.reviews, snapshot.mastery, settings, date)
-        const existingTodayKeys = new Set(tasks.filter((task) => task.date === date).map((task) => `${task.articleId}:${task.type}`))
-        const additions = generated.filter((task) => !existingTodayKeys.has(`${task.articleId}:${task.type}`))
+        const generated = knowledge.points.length
+          ? generateKnowledgeDailyTasks(knowledge.points, knowledge.reviews, knowledge.mastery, articles, settings, date)
+          : generateDailyTasks(articles, snapshot.reviews, snapshot.mastery, settings, date)
+        const existingTodayKeys = new Set(tasks.filter((task) => task.date === date).map((task) => `${task.knowledgePointId ?? task.articleId}:${task.type}`))
+        const additions = generated.filter((task) => !existingTodayKeys.has(`${task.knowledgePointId ?? task.articleId}:${task.type}`))
         if (additions.length) {
           await putMany(STORE_NAMES.tasks, additions)
           tasks = [...tasks, ...additions]
@@ -163,6 +203,10 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
         achievements: snapshot.achievements,
         confusions: snapshot.confusions,
         progress,
+        knowledgePoints: knowledge.points,
+        knowledgeQuestions: knowledge.questions,
+        knowledgeMastery: knowledge.mastery,
+        knowledgeReviews: knowledge.reviews,
       })
       setError(null)
     } catch (caught) {
@@ -412,12 +456,14 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
       durationSeconds: input.durationSeconds,
       completed: true,
       createdAt: timestamp,
+      knowledgePointId: input.knowledgePointId,
+      questionId: input.questionId,
     }
     const previousReview = current.reviews.find((review) => review.articleId === input.article.id)
     const review = calculateNextReview({ articleId: input.article.id, previous: previousReview, answer, mastery: current.mastery.find((item) => item.articleId === input.article.id) ?? createInitialMastery(input.article.id), settings: current.settings })
     let mastery = updateMastery(current.mastery.find((item) => item.articleId === input.article.id), answer, current.settings, review)
     if (previousReview && previousReview.intervalDays >= 7 && answer.score >= 90) mastery = { ...mastery, bestSevenDayScore: Math.max(mastery.bestSevenDayScore, answer.score) }
-    const session: StudySession = { id: makeId('session'), articleId: input.article.id, lawId: input.article.lawId, mode: input.mode, startedAt: new Date(Date.now() - input.durationSeconds * 1000).toISOString(), completedAt: timestamp, durationSeconds: input.durationSeconds, score: answer.score, usedHints: input.usedHints, completed: true }
+    const session: StudySession = { id: makeId('session'), articleId: input.article.id, lawId: input.article.lawId, mode: input.mode, startedAt: new Date(Date.now() - input.durationSeconds * 1000).toISOString(), completedAt: timestamp, durationSeconds: input.durationSeconds, score: answer.score, usedHints: input.usedHints, completed: true, knowledgePointId: input.knowledgePointId, questionId: input.questionId }
     await put(STORE_NAMES.answers, answer)
     await put(STORE_NAMES.sessions, session)
     await put(STORE_NAMES.reviews, review)
@@ -440,16 +486,103 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
         durationSeconds: input.durationSeconds,
         usedHints: input.usedHints,
         createdAt: timestamp,
+        knowledgePointId: input.knowledgePointId,
+        questionId: input.questionId,
       }
       await put(STORE_NAMES.errors, error)
     }
     const nextProgress = updateProgress(current.progress, answer, timestamp)
     await put(STORE_NAMES.progress, nextProgress)
-    const task = current.tasks.find((item) => item.date === todayKey() && item.articleId === input.article.id && !item.completed)
+    const task = current.tasks.find((item) => item.date === todayKey() && item.articleId === input.article.id && (!item.knowledgePointId || item.knowledgePointId === input.knowledgePointId) && !item.completed)
     if (task) await put(STORE_NAMES.tasks, { ...task, completed: true, completedAt: timestamp })
     const unlockedAchievements = await unlockAchievements({ current, nextProgress, answer, article: input.article, mastery })
     await loadState()
     return { answer, mastery, review, unlockedAchievements }
+  }, [loadState, state])
+
+  const submitKnowledgeQuestion = useCallback(async (input: SubmitKnowledgeInput): Promise<{ score: number; mastery: KnowledgeMastery; review: KnowledgeReview }> => {
+    const current = requireState(state)
+    const article = current.articles.find((item) => item.id === input.point.articleId)
+    if (!article) throw new Error('找不到此考點所屬法條')
+    const expected = Array.isArray(input.question.answer) ? input.question.answer.join('、') : input.question.answer
+    const score = scoreKnowledgeAnswer(input.question.answer, input.answer)
+    await submitTraining({
+      article,
+      mode: knowledgeQuestionMode(input.question.type),
+      answer: input.answer,
+      originalText: input.point.originalSentence,
+      comparisonText: expected,
+      requireExact: false,
+      usedHints: input.usedHints ?? 0,
+      durationSeconds: input.durationSeconds,
+      knowledgePointId: input.point.id,
+      questionId: input.question.id,
+    })
+    const latest = await readSnapshot()
+    const previousMastery = latest.knowledgeMastery.find((item) => item.knowledgePointId === input.point.id)
+    const previousReview = latest.knowledgeReviews.find((item) => item.knowledgePointId === input.point.id)
+    const mastery = updateKnowledgeMastery(previousMastery, input.point, score)
+    const review = updateKnowledgeReview(previousReview, input.point, current.settings, score)
+    await put(STORE_NAMES.knowledgeMastery, mastery)
+    await put(STORE_NAMES.knowledgeReviews, review)
+    await loadState()
+    return { score, mastery, review }
+  }, [loadState, state, submitTraining])
+
+  const createKnowledgePoint = useCallback(async (input: Omit<KnowledgePoint, 'id' | 'createdAt' | 'updatedAt'>): Promise<KnowledgePoint> => {
+    const timestamp = nowIso()
+    const point: KnowledgePoint = { ...input, id: makeId('kp'), createdAt: timestamp, updatedAt: timestamp }
+    const article = requireState(state).articles.find((item) => item.id === point.articleId)
+    if (!article) throw new Error('找不到此考點所屬法條')
+    await put(STORE_NAMES.knowledgePoints, point)
+    await putMany(STORE_NAMES.knowledgeQuestions, generateKnowledgeQuestions(point, article, requireState(state).articles))
+    await put(STORE_NAMES.knowledgeMastery, createInitialKnowledgeMastery(point, timestamp))
+    await put(STORE_NAMES.knowledgeReviews, createInitialKnowledgeReview(point, requireState(state).settings))
+    await loadState()
+    return point
+  }, [loadState, state])
+
+  const updateKnowledgePoint = useCallback(async (point: KnowledgePoint): Promise<void> => {
+    await put(STORE_NAMES.knowledgePoints, { ...point, name: point.name.trim() || '未命名考點', updatedAt: nowIso() })
+    await loadState()
+  }, [loadState])
+
+  const deleteKnowledgePoint = useCallback(async (pointId: string): Promise<void> => {
+    const point = requireState(state).knowledgePoints.find((item) => item.id === pointId)
+    if (!point) return
+    const timestamp = nowIso()
+    await put(STORE_NAMES.knowledgePoints, { ...point, deletedAt: timestamp, updatedAt: timestamp })
+    await loadState()
+  }, [loadState, state])
+
+  const mergeKnowledgePoints = useCallback(async (pointIds: string[]): Promise<void> => {
+    const current = requireState(state)
+    const selected = current.knowledgePoints.filter((point) => pointIds.includes(point.id) && !point.deletedAt)
+    if (selected.length < 2) throw new Error('至少選取兩個考點才能合併')
+    const [target, ...others] = selected
+    const timestamp = nowIso()
+    const merged: KnowledgePoint = { ...target, name: `${target.name}／合併 ${others.length} 個考點`, originalSentence: selected.map((point) => point.originalSentence).join('\n'), keywords: Array.from(new Set(selected.flatMap((point) => point.keywords))), dependencies: Array.from(new Set(selected.flatMap((point) => point.dependencies))), relatedPoints: Array.from(new Set(selected.flatMap((point) => point.relatedPoints))), confusionPoints: Array.from(new Set(selected.flatMap((point) => point.confusionPoints))), updatedAt: timestamp }
+    await put(STORE_NAMES.knowledgePoints, merged)
+    await Promise.all(others.map((point) => put(STORE_NAMES.knowledgePoints, { ...point, deletedAt: timestamp, updatedAt: timestamp })))
+    const movedQuestions = current.knowledgeQuestions.filter((question) => others.some((point) => point.id === question.knowledgePointId)).map((question) => ({ ...question, knowledgePointId: target.id, updatedAt: timestamp }))
+    await putMany(STORE_NAMES.knowledgeQuestions, movedQuestions)
+    await loadState()
+  }, [loadState, state])
+
+  const splitKnowledgePoint = useCallback(async (pointId: string, names: string[]): Promise<void> => {
+    const current = requireState(state)
+    const point = current.knowledgePoints.find((item) => item.id === pointId && !item.deletedAt)
+    const article = point && current.articles.find((item) => item.id === point.articleId)
+    const cleanNames = names.map((name) => name.trim()).filter(Boolean).slice(0, 20)
+    if (!point || !article || cleanNames.length < 2) throw new Error('拆分至少需要兩個考點名稱')
+    const timestamp = nowIso()
+    const created = cleanNames.map((name) => ({ ...point, id: makeId('kp'), name, type: 'CUSTOM' as const, source: 'manual' as const, originalSentence: point.originalSentence, createdAt: timestamp, updatedAt: timestamp, deletedAt: undefined }))
+    await putMany(STORE_NAMES.knowledgePoints, created)
+    await putMany(STORE_NAMES.knowledgeQuestions, created.flatMap((item) => generateKnowledgeQuestions(item, article, current.articles)))
+    await putMany(STORE_NAMES.knowledgeMastery, created.map((item) => createInitialKnowledgeMastery(item, timestamp)))
+    await putMany(STORE_NAMES.knowledgeReviews, created.map((item) => createInitialKnowledgeReview(item, current.settings)))
+    await put(STORE_NAMES.knowledgePoints, { ...point, deletedAt: timestamp, updatedAt: timestamp })
+    await loadState()
   }, [loadState, state])
 
   const updateSettings = useCallback(async (patch: Partial<AppSettings>): Promise<void> => {
@@ -469,6 +602,7 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
       await put(STORE_NAMES.progress, backup.progress)
       await Promise.all([
         putMany(STORE_NAMES.laws, backup.laws), putMany(STORE_NAMES.articles, backup.articles), putMany(STORE_NAMES.sections, backup.sections), putMany(STORE_NAMES.sessions, backup.sessions), putMany(STORE_NAMES.answers, backup.answers), putMany(STORE_NAMES.errors, backup.errors), putMany(STORE_NAMES.reviews, backup.reviews), putMany(STORE_NAMES.mastery, backup.mastery), putMany(STORE_NAMES.tasks, backup.tasks), putMany(STORE_NAMES.achievements, backup.achievements), putMany(STORE_NAMES.confusions, backup.confusions),
+        putMany(STORE_NAMES.knowledgePoints, backup.knowledgePoints ?? []), putMany(STORE_NAMES.knowledgeQuestions, backup.knowledgeQuestions ?? []), putMany(STORE_NAMES.knowledgeMastery, backup.knowledgeMastery ?? []), putMany(STORE_NAMES.knowledgeReviews, backup.knowledgeReviews ?? []),
       ])
     } else {
       const existing = await readSnapshot()
@@ -491,6 +625,14 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
       const incomingReviews = backup.reviews.map((item) => ({ ...item, articleId: articleIdMap.get(item.articleId) ?? item.articleId }))
       const incomingMastery = backup.mastery.map((item) => ({ ...item, articleId: articleIdMap.get(item.articleId) ?? item.articleId }))
       const incomingTasks = backup.tasks.map((item) => ({ ...item, articleId: articleIdMap.get(item.articleId) ?? item.articleId }))
+      const pointIdMap = new Map<string, string>()
+      const incomingPoints = (backup.knowledgePoints ?? []).map((point) => ({ ...point, articleId: articleIdMap.get(point.articleId) ?? point.articleId }))
+      const existingPointByKey = new Map(existing.knowledgePoints.map((point) => [`${point.articleId}:${point.name}`, point.id]))
+      incomingPoints.forEach((point) => pointIdMap.set(point.id, existingPointByKey.get(`${point.articleId}:${point.name}`) ?? point.id))
+      await mergeRecords(STORE_NAMES.knowledgePoints, existing.knowledgePoints, incomingPoints, (item) => `${item.articleId}:${item.name}`)
+      const incomingQuestions = (backup.knowledgeQuestions ?? []).map((question) => ({ ...question, articleId: articleIdMap.get(question.articleId) ?? question.articleId, knowledgePointId: pointIdMap.get(question.knowledgePointId) ?? question.knowledgePointId }))
+      const incomingKnowledgeMastery = (backup.knowledgeMastery ?? []).map((item) => ({ ...item, articleId: articleIdMap.get(item.articleId) ?? item.articleId, knowledgePointId: pointIdMap.get(item.knowledgePointId) ?? item.knowledgePointId }))
+      const incomingKnowledgeReviews = (backup.knowledgeReviews ?? []).map((item) => ({ ...item, articleId: articleIdMap.get(item.articleId) ?? item.articleId, knowledgePointId: pointIdMap.get(item.knowledgePointId) ?? item.knowledgePointId }))
       await mergeRecords(STORE_NAMES.sessions, existing.sessions, incomingSessions, (item) => item.id)
       await mergeRecords(STORE_NAMES.answers, existing.answers, incomingAnswers, (item) => item.id)
       await mergeRecords(STORE_NAMES.errors, existing.errors, incomingErrors, (item) => item.id)
@@ -499,6 +641,9 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
       await mergeRecords(STORE_NAMES.tasks, existing.tasks, incomingTasks, (item) => `${item.date}:${item.articleId}:${item.type}`)
       await mergeRecords(STORE_NAMES.achievements, existing.achievements, backup.achievements, (item) => item.key)
       await mergeRecords(STORE_NAMES.confusions, existing.confusions, backup.confusions, (item) => item.id)
+      await mergeRecords(STORE_NAMES.knowledgeQuestions, existing.knowledgeQuestions, incomingQuestions, (item) => item.id)
+      await mergeRecords(STORE_NAMES.knowledgeMastery, existing.knowledgeMastery, incomingKnowledgeMastery, (item) => item.knowledgePointId)
+      await mergeRecords(STORE_NAMES.knowledgeReviews, existing.knowledgeReviews, incomingKnowledgeReviews, (item) => item.knowledgePointId)
     }
     await loadState()
   }, [loadState])
@@ -539,8 +684,8 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
 
   const value = useMemo<AppContextValue | undefined>(() => {
     if (!state) return undefined
-    return { ...state, loading, error, refresh, createLaw, updateLaw, deleteLaw, saveImportedArticles, importExamPreset, updateArticle, deleteArticle, markRead, submitTraining, updateSettings, exportBackup, restoreBackup, resetSystem, loadDemoData, toggleTask, createConfusionGroup, deleteConfusionGroup }
-  }, [createConfusionGroup, createLaw, deleteArticle, deleteConfusionGroup, deleteLaw, error, exportBackup, importExamPreset, loadDemoData, loading, markRead, refresh, resetSystem, restoreBackup, saveImportedArticles, state, submitTraining, toggleTask, updateArticle, updateLaw, updateSettings])
+    return { ...state, loading, error, refresh, createLaw, updateLaw, deleteLaw, saveImportedArticles, importExamPreset, updateArticle, deleteArticle, markRead, submitTraining, submitKnowledgeQuestion, createKnowledgePoint, updateKnowledgePoint, deleteKnowledgePoint, mergeKnowledgePoints, splitKnowledgePoint, updateSettings, exportBackup, restoreBackup, resetSystem, loadDemoData, toggleTask, createConfusionGroup, deleteConfusionGroup }
+  }, [createConfusionGroup, createKnowledgePoint, createLaw, deleteArticle, deleteConfusionGroup, deleteKnowledgePoint, deleteLaw, error, exportBackup, importExamPreset, loadDemoData, loading, markRead, mergeKnowledgePoints, refresh, resetSystem, restoreBackup, saveImportedArticles, splitKnowledgePoint, state, submitKnowledgeQuestion, submitTraining, toggleTask, updateArticle, updateLaw, updateSettings])
 
   if (!value) return <div className="boot-screen"><div className="boot-mark">法典</div><p>{loading ? '正在開啟本機資料庫…' : error ?? '尚未準備好。'}</p><div className="boot-spinner" /></div>
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
@@ -569,6 +714,13 @@ function appendNote(existing: string, note: string): string {
 function toErrorMessage(value: unknown): string {
   if (value instanceof Error) return value.message
   return '本機資料操作失敗，請重新整理後再試。'
+}
+
+function knowledgeQuestionMode(type: KnowledgeQuestion['type']): TrainingMode {
+  if (type === 'number' || type === 'comparison') return 'numbers'
+  if (type === 'ordering') return 'ordering'
+  if (type === 'must-may' || type === 'keyword') return 'keywords'
+  return 'comprehension'
 }
 
 function updateProgress(progress: UserProgress, answer: AnswerRecord, timestamp: string): UserProgress {
@@ -624,6 +776,89 @@ async function unlockAchievements(input: { current: AppState; nextProgress: User
 
 async function clearAllStores(): Promise<void> {
   await Promise.all(Object.values(STORE_NAMES).map((storeName) => clearStore(storeName)))
+}
+
+interface KnowledgeLayerInput {
+  articles: LawArticle[]
+  sections: ArticleSection[]
+  existingPoints: KnowledgePoint[]
+  existingQuestions: KnowledgeQuestion[]
+  existingMastery: KnowledgeMastery[]
+  existingReviews: KnowledgeReview[]
+  articleMastery: MasteryRecord[]
+  articleReviews: ReviewSchedule[]
+  settings: AppSettings
+}
+
+async function ensureKnowledgeLayer(input: KnowledgeLayerInput): Promise<{ points: KnowledgePoint[]; questions: KnowledgeQuestion[]; mastery: KnowledgeMastery[]; reviews: KnowledgeReview[] }> {
+  const activeArticles = input.articles.filter((article) => !article.deletedAt)
+  const points = [...input.existingPoints]
+  const questions = [...input.existingQuestions]
+  const mastery = [...input.existingMastery]
+  const reviews = [...input.existingReviews]
+  const existingPointArticles = new Set(points.filter((point) => !point.deletedAt).map((point) => point.articleId))
+  const pointsToAdd: KnowledgePoint[] = []
+
+  for (const article of activeArticles) {
+    if (!existingPointArticles.has(article.id)) {
+      const built = buildKnowledgePoints(article, input.sections.filter((section) => section.articleId === article.id))
+      pointsToAdd.push(...built)
+      if (article.questions?.filter(Boolean).length) {
+        pointsToAdd.push({
+          id: makeId('kp'), articleId: article.id, name: '既有題目／一般考點', type: 'GENERAL_PRINCIPLE', importance: article.importance, difficulty: 3,
+          keywords: [], originalSentence: article.text, dependencies: [], relatedPoints: [], confusionPoints: [], source: 'migrated', createdAt: nowIso(), updatedAt: nowIso(),
+        })
+      }
+    }
+  }
+  if (pointsToAdd.length) {
+    await putMany(STORE_NAMES.knowledgePoints, pointsToAdd)
+    points.push(...pointsToAdd)
+  }
+
+  const articleMasteryMap = new Map(input.articleMastery.map((item) => [item.articleId, item]))
+  const articleReviewMap = new Map(input.articleReviews.map((item) => [item.articleId, item]))
+  const pointIds = new Set(points.filter((point) => !point.deletedAt).map((point) => point.id))
+  const newMastery: KnowledgeMastery[] = []
+  const newReviews: KnowledgeReview[] = []
+  for (const point of points.filter((item) => !item.deletedAt)) {
+    if (!mastery.some((item) => item.knowledgePointId === point.id)) {
+      const articleRecord = articleMasteryMap.get(point.articleId)
+      const initial = createInitialKnowledgeMastery(point)
+      newMastery.push(articleRecord ? { ...initial, score: articleRecord.score, status: articleRecord.status, attempts: articleRecord.attempts, lastScore: articleRecord.lastScore, errorFrequency: articleRecord.errorFrequency, updatedAt: articleRecord.updatedAt } : initial)
+    }
+    if (!reviews.some((item) => item.knowledgePointId === point.id)) {
+      const articleReview = articleReviewMap.get(point.articleId)
+      const initial = createInitialKnowledgeReview(point, input.settings)
+      newReviews.push(articleReview ? { ...initial, stage: articleReview.stage, intervalDays: articleReview.intervalDays, nextReviewAt: articleReview.nextReviewAt, lastReviewedAt: articleReview.lastReviewedAt, lastScore: articleReview.lastScore, consecutiveCorrect: articleReview.consecutiveCorrect, lapses: articleReview.lapses, crossDayPasses: articleReview.crossDayPasses } : initial)
+    }
+  }
+  if (newMastery.length) {
+    await putMany(STORE_NAMES.knowledgeMastery, newMastery)
+    mastery.push(...newMastery)
+  }
+  if (newReviews.length) {
+    await putMany(STORE_NAMES.knowledgeReviews, newReviews)
+    reviews.push(...newReviews)
+  }
+
+  const newQuestions: KnowledgeQuestion[] = []
+  for (const point of points.filter((item) => !item.deletedAt && pointIds.has(item.id))) {
+    if (questions.some((question) => question.knowledgePointId === point.id && question.isActive)) continue
+    const article = input.articles.find((item) => item.id === point.articleId)
+    if (!article) continue
+    const generated = generateKnowledgeQuestions(point, article, activeArticles)
+    const oldQuestions = article.questions?.filter(Boolean) ?? []
+    if (point.source === 'migrated' && oldQuestions.length) {
+      generated.push(...oldQuestions.map((text) => ({ id: makeId('kpq'), knowledgePointId: point.id, articleId: article.id, type: 'case' as const, prompt: text, answer: text, explanation: article.text, difficulty: 3 as const, isActive: true, source: 'migrated' as const, createdAt: nowIso(), updatedAt: nowIso() })))
+    }
+    newQuestions.push(...generated.slice(0, 20))
+  }
+  if (newQuestions.length) {
+    await putMany(STORE_NAMES.knowledgeQuestions, newQuestions)
+    questions.push(...newQuestions)
+  }
+  return { points, questions, mastery, reviews }
 }
 
 async function mergeRecords<T extends { id: string }>(storeName: typeof STORE_NAMES[keyof typeof STORE_NAMES], existing: T[], incoming: T[], key: (item: T) => string): Promise<void> {

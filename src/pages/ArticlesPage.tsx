@@ -385,6 +385,10 @@ export function ArticlesPage(): JSX.Element {
 }
 
 function ArticleRow({ article, onStudy, onEdit, onTrain, onDelete }: { article: LawArticle; onStudy: () => void; onEdit: () => void; onTrain: () => void; onDelete: () => void }): JSX.Element {
+  return <><LegacyArticleRow article={article} onStudy={onStudy} onEdit={onEdit} onTrain={onTrain} onDelete={onDelete} /><KnowledgePointSummary article={article} /></>
+}
+
+function LegacyArticleRow({ article, onStudy, onEdit, onTrain, onDelete }: { article: LawArticle; onStudy: () => void; onEdit: () => void; onTrain: () => void; onDelete: () => void }): JSX.Element {
   const data = useAppData()
   const mastery = data.mastery.find((item) => item.articleId === article.id)
   const questionCount = article.questions?.filter(Boolean).length ?? 0
@@ -394,6 +398,14 @@ function ArticleRow({ article, onStudy, onEdit, onTrain, onDelete }: { article: 
 function ArticleTextBlocks({ text }: { text: string }): JSX.Element {
   const blocks = splitArticleTextBlocks(text)
   return <div className="article-structured-text" aria-label="法條項次內容">{blocks.map((block, index) => <div className={`article-text-block article-text-${block.kind}`} key={`${block.paragraphNumber}-${index}-${block.text}`}>{block.kind === 'paragraph' && <span className="article-text-label">第 {block.paragraphNumber} 項</span>}<p>{block.text}</p></div>)}</div>
+}
+
+function KnowledgePointSummary({ article }: { article: LawArticle }): JSX.Element | null {
+  const data = useAppData()
+  const navigate = useNavigate()
+  const points = data.knowledgePoints.filter((point) => point.articleId === article.id && !point.deletedAt)
+  if (!points.length) return null
+  return <section className="article-knowledge-summary"><div className="article-knowledge-summary-head"><strong>考點 {points.length}</strong><Button variant="ghost" onClick={() => navigate('/knowledge')}>管理考點</Button></div><div className="article-knowledge-chip-list">{points.slice(0, 6).map((point) => { const mastery = data.knowledgeMastery.find((item) => item.knowledgePointId === point.id); return <button type="button" key={point.id} onClick={() => navigate(`/training/${article.id}?point=${point.id}`)}><span>{point.name}</span><b>{Math.round(mastery?.score ?? 0)}%</b></button> })}</div></section>
 }
 
 function ArticleStudyForm({ article, onSave, onCancel }: { article: LawArticle; onSave: (article: LawArticle) => void; onCancel: () => void }): JSX.Element {

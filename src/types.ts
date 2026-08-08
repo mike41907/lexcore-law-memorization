@@ -92,6 +92,113 @@ export interface LawArticle {
   deletedAt?: ISODate
 }
 
+/**
+ * A knowledge point is the smallest examinable unit extracted from an article.
+ * The original sentence is always kept so the rule engine never needs to
+ * invent a legal explanation.
+ */
+export type KnowledgePointType =
+  | 'GENERAL_PRINCIPLE'
+  | 'SUBJECT'
+  | 'OBJECT'
+  | 'CONDITION'
+  | 'LEGAL_EFFECT'
+  | 'PROCEDURE'
+  | 'NUMBER'
+  | 'TIME_LIMIT'
+  | 'AMOUNT'
+  | 'AGE'
+  | 'MUST'
+  | 'MAY'
+  | 'PROHIBITED'
+  | 'EXCEPTION'
+  | 'PROVISO'
+  | 'DEFINITION'
+  | 'ORDER'
+  | 'CUSTOM'
+
+export type KnowledgeQuestionType =
+  | 'cloze'
+  | 'single-choice'
+  | 'multiple-choice'
+  | 'true-false'
+  | 'ordering'
+  | 'keyword'
+  | 'must-may'
+  | 'number'
+  | 'case'
+  | 'matching'
+  | 'comparison'
+
+export type KnowledgeSource = 'rule' | 'manual' | 'migrated' | 'ai-suggestion'
+
+export interface KnowledgePoint {
+  id: string
+  articleId: string
+  name: string
+  type: KnowledgePointType
+  importance: 1 | 2 | 3 | 4 | 5
+  difficulty: 1 | 2 | 3 | 4 | 5
+  keywords: string[]
+  originalSentence: string
+  paragraph?: number
+  item?: number
+  subitem?: number
+  number?: string
+  dependencies: string[]
+  relatedPoints: string[]
+  confusionPoints: string[]
+  source: KnowledgeSource
+  createdAt: ISODate
+  updatedAt: ISODate
+  deletedAt?: ISODate
+}
+
+export interface KnowledgeQuestion {
+  id: string
+  knowledgePointId: string
+  articleId: string
+  type: KnowledgeQuestionType
+  prompt: string
+  options?: string[]
+  answer: string | string[]
+  explanation: string
+  difficulty: 1 | 2 | 3 | 4 | 5
+  isActive: boolean
+  source: KnowledgeSource
+  createdAt: ISODate
+  updatedAt: ISODate
+}
+
+export interface KnowledgeMastery {
+  id: string
+  knowledgePointId: string
+  articleId: string
+  score: number
+  status: ArticleStatus
+  attempts: number
+  correct: number
+  errorFrequency: number
+  consecutiveCorrect: number
+  lastScore: number
+  lastReviewAt?: ISODate
+  updatedAt: ISODate
+}
+
+export interface KnowledgeReview {
+  id: string
+  knowledgePointId: string
+  articleId: string
+  stage: number
+  intervalDays: number
+  nextReviewAt: ISODate
+  lastReviewedAt?: ISODate
+  lastScore?: number
+  consecutiveCorrect: number
+  lapses: number
+  crossDayPasses: number
+}
+
 export type ExamFrequencyTier = 'S' | 'A' | 'B' | 'C'
 
 export interface ExamFrequencyTopicReference {
@@ -161,6 +268,8 @@ export interface StudySession {
   score: number
   usedHints: number
   completed: boolean
+  knowledgePointId?: string
+  questionId?: string
 }
 
 export interface AnswerRecord {
@@ -179,6 +288,8 @@ export interface AnswerRecord {
   durationSeconds: number
   completed: boolean
   createdAt: ISODate
+  knowledgePointId?: string
+  questionId?: string
 }
 
 export interface ErrorRecord {
@@ -198,6 +309,8 @@ export interface ErrorRecord {
   durationSeconds: number
   usedHints: number
   createdAt: ISODate
+  knowledgePointId?: string
+  questionId?: string
 }
 
 export interface ReviewSchedule {
@@ -247,6 +360,9 @@ export interface DailyTask {
   completed: boolean
   completedAt?: ISODate
   createdAt: ISODate
+  knowledgePointId?: string
+  questionId?: string
+  targetType?: 'article' | 'knowledge-point'
 }
 
 export interface Achievement {
@@ -297,6 +413,10 @@ export interface BackupData {
   achievements: Achievement[]
   confusions: ConfusionGroup[]
   progress: UserProgress
+  knowledgePoints?: KnowledgePoint[]
+  knowledgeQuestions?: KnowledgeQuestion[]
+  knowledgeMastery?: KnowledgeMastery[]
+  knowledgeReviews?: KnowledgeReview[]
 }
 
 export interface ImportArticleDraft {

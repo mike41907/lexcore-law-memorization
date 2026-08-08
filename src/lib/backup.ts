@@ -24,6 +24,10 @@ export function createBackup(snapshot: DatabaseSnapshot, exportedAt = new Date()
     achievements: snapshot.achievements,
     confusions: snapshot.confusions,
     progress,
+    knowledgePoints: snapshot.knowledgePoints,
+    knowledgeQuestions: snapshot.knowledgeQuestions,
+    knowledgeMastery: snapshot.knowledgeMastery,
+    knowledgeReviews: snapshot.knowledgeReviews,
   }
 }
 
@@ -40,7 +44,13 @@ export function parseBackup(raw: string): BackupData {
     if (!Array.isArray(parsed[key])) throw new Error(`備份檔缺少有效的 ${key} 資料。`)
   }
   if (!isRecord(parsed.settings) || !isRecord(parsed.progress)) throw new Error('備份檔缺少設定或遊戲進度資料。')
-  return parsed as unknown as BackupData
+  return {
+    ...(parsed as unknown as BackupData),
+    knowledgePoints: Array.isArray(parsed.knowledgePoints) ? parsed.knowledgePoints as BackupData['knowledgePoints'] : [],
+    knowledgeQuestions: Array.isArray(parsed.knowledgeQuestions) ? parsed.knowledgeQuestions as BackupData['knowledgeQuestions'] : [],
+    knowledgeMastery: Array.isArray(parsed.knowledgeMastery) ? parsed.knowledgeMastery as BackupData['knowledgeMastery'] : [],
+    knowledgeReviews: Array.isArray(parsed.knowledgeReviews) ? parsed.knowledgeReviews as BackupData['knowledgeReviews'] : [],
+  }
 }
 
 export function backupSummary(backup: BackupData): { exportedAt: string; laws: number; articles: number; answers: number } {
