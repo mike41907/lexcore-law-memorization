@@ -1063,6 +1063,18 @@ body { background: radial-gradient(circle at 72% -12%, color-mix(in srgb, var(--
   .article-row-head { gap: 5px; }
   .article-row-content { padding: 5px 0 0; }
   .article-text-block { grid-template-columns: 22px minmax(0, 1fr); gap: 7px; padding: 2px 0; }
+  /* 款、目沒有「第幾項」標籤；若沿用上方兩欄格線，文字會被放進 22px 的第一欄。 */
+  .article-text-block.article-text-item,
+  .article-text-block.article-text-subitem {
+    grid-template-columns: minmax(0, 1fr);
+    padding-left: 26px;
+  }
+  .article-text-block.article-text-item p,
+  .article-text-block.article-text-subitem p {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+  }
   .article-text-block p { font-size: 13px; line-height: 1.7; }
   .article-row-footer { align-items: stretch; flex-direction: column; gap: 7px; }
   .article-row-progress { width: 100%; max-width: 100%; }
