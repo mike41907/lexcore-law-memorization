@@ -376,7 +376,7 @@ export function ArticlesPage(): JSX.Element {
 
     {selectedLaw ? <section className="article-browser">
       <div className="section-toolbar"><div><p className="eyebrow">BROWSER / {selectedLaw.shortName}</p><h2>已儲存法條 <span className="count-chip">{articles.length}</span></h2></div><div className="article-toolbar-actions">{isCriminalProcedure && <div className="sort-segment" aria-label="法條排序方式"><button type="button" className={sortMode === 'frequency' ? 'active' : ''} onClick={() => { setSortMode('frequency'); setVisibleCount(40) }}>考頻優先</button><button type="button" className={sortMode === 'number' ? 'active' : ''} onClick={() => { setSortMode('number'); setVisibleCount(40) }}>條號順序</button></div>}<label className="search-box"><span>⌕</span><input value={search} onChange={(event) => { setSearch(event.target.value); setVisibleCount(40) }} placeholder="搜尋條號、標題或文字" /></label></div></div>
-      {articles.length ? <><div className="article-list article-chapter-list">{articleChapterGroups.map((group) => { const open = !collapsedChapters.has(group.id); return <section className={`article-chapter-group ${open ? 'is-open' : 'is-collapsed'}`} key={group.id}><button type="button" className="article-chapter-toggle" aria-expanded={open} onClick={() => setCollapsedChapters((current) => { const next = new Set(current); if (open) next.add(group.id); else next.delete(group.id); return next })}><span>{open ? '▼' : '▶'}</span><strong>{group.label}</strong><small>{group.articles.length} 條顯示中</small></button>{open && group.articles.map((article) => <ArticleRow key={article.id} article={article} onStudy={() => setStudyEditing(article)} onEdit={() => setEditing(article)} onTrain={() => navigate(`/training/${article.id}`)} onDelete={() => void removeArticle(article)} />)}</section> })}</div>{visibleCount < articles.length && <div className="article-load-more"><span>目前顯示 {visibleArticles.length}／{articles.length} 條</span><Button variant="secondary" onClick={() => setVisibleCount((count) => count + 40)}>再顯示 40 條</Button></div>}</> : <EmptyState icon="≡" title="這部法規還沒有法條" description="從官方資料庫勾選條文，或貼上文字並產生預覽。" />}
+      {articles.length ? <><div className="article-list article-chapter-list">{articleChapterGroups.map((group) => { const open = !collapsedChapters.has(group.id); return <section className={`article-chapter-group ${open ? 'is-open' : 'is-collapsed'}`} key={group.id}><button type="button" className="article-chapter-toggle" aria-expanded={open} onClick={() => setCollapsedChapters((current) => { const next = new Set(current); if (open) next.add(group.id); else next.delete(group.id); return next })}><span>{open ? '▼' : '▶'}</span><strong>{group.label}</strong><small>{group.articles.length} 條顯示中</small></button>{open && group.articles.map((article) => <ArticleRow key={article.id} article={article} chapterLabel={group.label} onStudy={() => setStudyEditing(article)} onEdit={() => setEditing(article)} onTrain={() => navigate(`/training/${article.id}`)} onDelete={() => void removeArticle(article)} />)}</section> })}</div>{visibleCount < articles.length && <div className="article-load-more"><span>目前顯示 {visibleArticles.length}／{articles.length} 條</span><Button variant="secondary" onClick={() => setVisibleCount((count) => count + 40)}>再顯示 40 條</Button></div>}</> : <EmptyState icon="≡" title="這部法規還沒有法條" description="從官方資料庫勾選條文，或貼上文字並產生預覽。" />}
     </section> : <EmptyState icon="⌕" title="先搜尋並選擇法條" description="上方可直接搜尋全國法規資料庫；選好條文後，系統會自動建立對應的本機法規。" />}
 
     {editing && <Modal title={`編輯第 ${editing.articleNumber} 條`} onClose={() => setEditing(null)}><ArticleEditForm article={editing} onCancel={() => setEditing(null)} onSave={(article) => void saveArticle(article)} /></Modal>}
@@ -384,11 +384,11 @@ export function ArticlesPage(): JSX.Element {
   </div>
 }
 
-function ArticleRow({ article, onStudy, onEdit, onTrain, onDelete }: { article: LawArticle; onStudy: () => void; onEdit: () => void; onTrain: () => void; onDelete: () => void }): JSX.Element {
-  return <><LegacyArticleRow article={article} onStudy={onStudy} onEdit={onEdit} onTrain={onTrain} onDelete={onDelete} /><ArticleHighlightTools article={article} /></>
+function ArticleRow({ article, chapterLabel, onStudy, onEdit, onTrain, onDelete }: { article: LawArticle; chapterLabel?: string; onStudy: () => void; onEdit: () => void; onTrain: () => void; onDelete: () => void }): JSX.Element {
+  return <LegacyArticleRow article={article} chapterLabel={chapterLabel} onStudy={onStudy} onEdit={onEdit} onTrain={onTrain} onDelete={onDelete} />
 }
 
-function LegacyArticleRow({ article, onStudy, onEdit, onTrain, onDelete }: { article: LawArticle; onStudy: () => void; onEdit: () => void; onTrain: () => void; onDelete: () => void }): JSX.Element {
+function LegacyArticleRow({ article, chapterLabel, onStudy, onEdit, onTrain, onDelete }: { article: LawArticle; chapterLabel?: string; onStudy: () => void; onEdit: () => void; onTrain: () => void; onDelete: () => void }): JSX.Element {
   const data = useAppData()
   const mastery = data.mastery.find((item) => item.articleId === article.id)
   const questionCount = article.questions?.filter(Boolean).length ?? 0
@@ -407,7 +407,7 @@ function LegacyArticleRow({ article, onStudy, onEdit, onTrain, onDelete }: { art
     </div>
     <div className="article-row-content">
       <div className="article-row-title">
-        <h3>{article.title || '未命名條文'}</h3>
+        {article.title && article.title !== chapterLabel && <h3>{article.title}</h3>}
         {article.examFrequency && <p className="article-frequency-topics">{article.examFrequency.topics.slice(0, 3).map((topic) => `#${topic.rank} ${topic.title}`).join(' · ')}</p>}
         <ArticleTextBlocks text={article.text} highlights={article.highlights ?? []} />
       </div>
@@ -416,6 +416,7 @@ function LegacyArticleRow({ article, onStudy, onEdit, onTrain, onDelete }: { art
       <div className="article-row-progress"><strong>{Math.round(mastery?.score ?? 0)}%</strong><ProgressBar value={mastery?.score ?? 0} showValue={false} tone={(mastery?.score ?? 0) >= 80 ? 'green' : 'blue'} /></div>
       <div className="row-actions"><Button variant="secondary" onClick={onTrain}>訓練</Button><Button variant="ghost" onClick={onStudy}>筆記／考題</Button><Button variant="ghost" onClick={onEdit}>編輯</Button><button className="icon-button danger-icon" onClick={onDelete} aria-label="封存法條">×</button></div>
     </div>
+    <ArticleHighlightTools article={article} />
   </article>
 }
 

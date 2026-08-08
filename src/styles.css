@@ -1068,3 +1068,23 @@ body { background: radial-gradient(circle at 72% -12%, color-mix(in srgb, var(--
   .article-row-progress { width: 100%; max-width: 100%; }
   .article-row-footer .row-actions { justify-content: flex-start; flex-wrap: wrap; }
 }
+
+/* Keep chapter controls and their article rows as one continuous legal document. */
+.article-chapter-list { display: block; border-top: 0; }
+.article-chapter-group { display: block; margin: 0; }
+.article-chapter-group + .article-chapter-group { margin-top: 14px; }
+.article-chapter-toggle { width: 100%; margin-bottom: 4px; }
+.article-chapter-group .article-row { margin-left: 0; }
+.article-row.card { min-width: 0; }
+.article-mark-tools { align-items: center; gap: 6px; margin: 0; padding: 5px 4px 0; border-top: 0; color: var(--text-secondary); font-size: 10px; }
+.article-mark-tools > span { flex: 1 1 170px; min-width: 0; overflow-wrap: anywhere; }
+.article-mark-tools .button { min-height: 26px; padding: 0 8px; font-size: 10px; }
+.article-mark-tools .highlight-chip { margin: 1px 2px; padding: 2px 5px; font-size: 10px; }
+
+@media (max-width: 720px) {
+  .article-chapter-group + .article-chapter-group { margin-top: 10px; }
+  .article-chapter-toggle { margin-bottom: 2px; }
+  .article-mark-tools { align-items: stretch; padding: 6px 0 0; }
+  .article-mark-tools > span { flex-basis: 100%; }
+  .article-mark-tools .button { flex: 1 1 120px; }
+}
