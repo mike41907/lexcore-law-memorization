@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, EmptyState, PageHeader, ProgressBar, StatusBadge } from '../components/ui'
 import { useAppData } from '../context/AppContext'
-import type { KnowledgeMastery, KnowledgePoint, KnowledgePointType, LawArticle } from '../types'
+import type { KnowledgeMastery, KnowledgePoint, KnowledgePointType, LawArticle, LawCollection } from '../types'
 import { KNOWLEDGE_POINT_TYPE_LABELS } from '../lib/knowledgePointEngine'
 
 export function KnowledgeDashboardPage(): JSX.Element {
@@ -50,7 +50,7 @@ export function KnowledgeDashboardPage(): JSX.Element {
     if (names.length >= 2) await data.splitKnowledgePoint(id, names)
   }
 
-  return <div className="page-stack knowledge-dashboard-page"><KnowledgeMap points={points.slice(0, 80)} articleMap={articleMap} masteryMap={masteryMap} />
+  return <div className="page-stack knowledge-dashboard-page"><KnowledgeMap points={points.slice(0, 80)} articleMap={articleMap} laws={activeLaws} masteryMap={masteryMap} />
     <PageHeader eyebrow="KNOWLEDGE ENGINE / 考點中心" title="考點儀表板" description="把法條拆成可測量的最小記憶單位，數字、期限、應得不得與法律效果各自追蹤。所有規則題都連回原文，不由系統自行解釋法律。" actions={<Button onClick={() => void addPoint()}>新增自訂考點</Button>} />
     <section className="knowledge-summary-grid"><div className="card"><span className="eyebrow">TOTAL POINTS</span><strong>{points.length}</strong><small>考點</small></div><div className="card"><span className="eyebrow">AVERAGE MASTERY</span><strong>{Math.round(average)}%</strong><ProgressBar value={average} showValue={false} tone={average >= 90 ? 'green' : average >= 70 ? 'gold' : 'red'} /></div><div className="card"><span className="eyebrow">DUE REVIEW</span><strong>{dueCount}</strong><small>待複習</small></div><div className="card"><span className="eyebrow">HIGH RISK</span><strong>{riskCount}</strong><small>低於 70%</small></div></section>
     <section className="knowledge-toolbar card"><label>法規<select value={lawFilter} onChange={(event) => setLawFilter(event.target.value)}><option value="all">全部法規</option>{activeLaws.map((law) => <option key={law.id} value={law.id}>{law.shortName || law.name}</option>)}</select></label><label>考點類型<select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as 'all' | KnowledgePointType)}><option value="all">全部類型</option>{Object.entries(KNOWLEDGE_POINT_TYPE_LABELS).map(([type, label]) => <option key={type} value={type}>{label}</option>)}</select></label><label className="search-box"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋考點、原文或關鍵詞" /></label>{selected.length >= 2 && <Button variant="secondary" onClick={() => void data.mergeKnowledgePoints(selected)}>合併選取 {selected.length} 個</Button>}</section>
@@ -58,12 +58,13 @@ export function KnowledgeDashboardPage(): JSX.Element {
   </div>
 }
 
-function KnowledgeMap({ points, articleMap, masteryMap }: { points: KnowledgePoint[]; articleMap: Map<string, LawArticle>; masteryMap: Map<string, KnowledgeMastery> }): JSX.Element {
+function KnowledgeMap({ points, articleMap, laws, masteryMap }: { points: KnowledgePoint[]; articleMap: Map<string, LawArticle>; laws: LawCollection[]; masteryMap: Map<string, KnowledgeMastery> }): JSX.Element {
   const navigate = useNavigate()
   const groups = new Map<string, typeof points>()
   points.forEach((point) => {
     const article = articleMap.get(point.articleId)
-    const key = article ? `${article.lawId} · 第 ${article.articleNumber} 條` : '未分類法條'
+    const law = article && laws.find((item) => item.id === article.lawId)
+    const key = article ? `${law?.shortName || law?.name || '未知法規'} · 第 ${article.articleNumber} 條` : '未分類法條'
     groups.set(key, [...(groups.get(key) ?? []), point])
   })
   return <section className="knowledge-map card"><div className="card-heading"><div><p className="eyebrow">KNOWLEDGE MAP / 考點地圖</p><h2>法條 → 考點 → 熟練度</h2></div><span className="muted">點擊節點開始訓練</span></div><div className="knowledge-map-groups">{Array.from(groups.entries()).map(([label, group]) => <div className="knowledge-map-group" key={label}><strong>{label}</strong><div className="knowledge-map-points">{group.map((point) => <button type="button" key={point.id} onClick={() => navigate(`/training/${point.articleId}?point=${point.id}`)}><span>{point.name}</span><b>{Math.round(masteryMap.get(point.id)?.score ?? 0)}%</b></button>)}</div></div>)}</div></section>

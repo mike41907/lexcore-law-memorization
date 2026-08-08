@@ -45,9 +45,9 @@
 .knowledge-point-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .knowledge-map { display: grid; gap: 16px; }
 .knowledge-map-groups { display: grid; gap: 12px; }
-.knowledge-map-group { display: grid; gap: 8px; padding: 12px; border-left: 2px solid var(--accent); background: var(--surface-hover); border-radius: 0 12px 12px 0; }
+.knowledge-map-group { display: grid; gap: 8px; min-width: 0; padding: 12px; border-left: 2px solid var(--accent); background: var(--surface-hover); border-radius: 0 12px 12px 0; }
 .knowledge-map-points { display: flex; gap: 8px; flex-wrap: wrap; padding-left: 14px; }
-.knowledge-map-points button { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text-primary); padding: 7px 10px; cursor: pointer; }
+.knowledge-map-points button { display: inline-flex; align-items: center; gap: 8px; max-width: min(100%, 360px); min-width: 0; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text-primary); padding: 7px 10px; cursor: pointer; }
 .knowledge-map-points button:hover { border-color: var(--accent); }
 .knowledge-map-points span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .knowledge-map-points b { color: var(--accent); font-size: 11px; }
