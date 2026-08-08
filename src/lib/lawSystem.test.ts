@@ -13,13 +13,14 @@ describe('law system map', () => {
     expect([article('十'), article('二'), article('二之一'), article('一')].sort(compareArticleNumbers).map((item) => item.articleNumber)).toEqual(['一', '二', '二之一', '十'])
   })
 
-  it('collapses repeated headings without inventing missing parents', () => {
+  it('nests official headings without inventing missing parents', () => {
     const map = buildLawSystemMap([article('1', '第 一 章 總則'), article('2', '第 一 章 總則'), article('3', '第 一 節 通則'), article('4', '第 一 節 通則'), article('5', '第 二 章 執行')])
-    expect(map.roots).toHaveLength(3)
-    expect(map.roots[0].articleIds).toHaveLength(2)
-    expect(map.roots[1].directArticleIds).toEqual(['a-3', 'a-4'])
+    expect(map.roots).toHaveLength(2)
+    expect(map.roots[0].articleIds).toHaveLength(4)
+    expect(map.roots[0].children[0].directArticleIds).toEqual(['a-3', 'a-4'])
     expect(map.roots[0].startArticle).toBe('1')
-    expect(map.roots[0].endArticle).toBe('2')
+    expect(map.roots[0].endArticle).toBe('4')
+    expect(map.roots[0].children[0].anchorArticleId).toBe('a-3')
   })
 
   it('keeps laws without official divisions usable', () => {

@@ -1,16 +1,18 @@
-import { useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ExamPresetImporter } from '../components/ExamPresetImporter'
 import { OfficialLawImporter } from '../components/OfficialLawImporter'
+import { LawStructureMap } from '../components/LawStructureMap'
 import { Button, EmptyState, Modal, Notice, PageHeader, ProgressBar, StatusBadge } from '../components/ui'
 import { useAppData } from '../context/AppContext'
-import type { ImportArticleDraft, LawArticle } from '../types'
+import type { ExamSubject, ImportArticleDraft, LawArticle, LawType } from '../types'
 import type { OfficialLawDataSource, OfficialLawSummary } from '../lib/officialLaws'
 import { POLICE_SERGEANT_EXAM_PRESET, type ExamPresetBundle, type ExamPresetImportResult } from '../lib/examPreset'
 import { parseJsonImport, splitLawText } from '../lib/importer'
 import { splitArticleTextBlocks } from '../lib/articleStructure'
-import { compareArticleNumbers } from '../lib/lawSystem'
 import { CRIMINAL_PROCEDURE_FREQUENCY_TOPICS, compareExamFrequency, examFrequencyTier, isCriminalProcedureLaw } from '../lib/criminalProcedureFrequency'
+import { EXAM_SUBJECTS, EXAM_SUBJECT_LABELS, LAW_TYPE_LABELS, classifyExamSubject, classifyLawType } from '../lib/examSubjects'
+import { buildLawSystemMap, compareArticleNumbers, flattenSystemNodes } from '../lib/lawSystem'
 
 type ImportKind = 'official' | 'text' | 'json' | 'external'
 type ExternalFormat = 'text' | 'json'
@@ -21,29 +23,52 @@ export function ArticlesPage(): JSX.Element {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const activeLaws = data.laws.filter((law) => !law.deletedAt)
-  const [selectedLawId, setSelectedLawId] = useState(searchParams.get('law') ?? activeLaws[0]?.id ?? '')
+  const [selectedLawId, setSelectedLawId] = useState(searchParams.get('law') ?? '')
+  const [selectedSubject, setSelectedSubject] = useState<ExamSubject | undefined>(asExamSubject(searchParams.get('subject')))
   const [input, setInput] = useState('')
   const [importKind, setImportKind] = useState<ImportKind>('official')
   const [externalFormat, setExternalFormat] = useState<ExternalFormat>('text')
   const [externalName, setExternalName] = useState('')
   const [externalShortName, setExternalShortName] = useState('')
   const [externalSourceUrl, setExternalSourceUrl] = useState('')
+  const [externalSubject, setExternalSubject] = useState<Exclude<ExamSubject, 'unclassified'>>('police-law')
+  const [externalLawType, setExternalLawType] = useState<LawType>('order')
   const [importOpen, setImportOpen] = useState(false)
   const [preview, setPreview] = useState<ImportArticleDraft[]>([])
   const [search, setSearch] = useState('')
+  const [librarySearch, setLibrarySearch] = useState('')
   const [sortMode, setSortMode] = useState<ArticleSortMode>('frequency')
   const [visibleCount, setVisibleCount] = useState(40)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [editing, setEditing] = useState<LawArticle | null>(null)
   const [studyEditing, setStudyEditing] = useState<LawArticle | null>(null)
+  const [activeNodeId, setActiveNodeId] = useState<string>()
   const fileInput = useRef<HTMLInputElement>(null)
   const selectedLaw = activeLaws.find((law) => law.id === selectedLawId)
+  const selectedSubjectLaws = selectedSubject ? activeLaws.filter((law) => (law.examSubject ?? classifyExamSubject(law)) === selectedSubject) : []
   const isCriminalProcedure = isCriminalProcedureLaw(selectedLaw)
   const presetLawNames = useMemo(() => new Set(POLICE_SERGEANT_EXAM_PRESET.laws.map((law) => normalizeName(law.name))), [])
   const presetLaws = activeLaws.filter((law) => presetLawNames.has(normalizeName(law.name)))
   const presetLawIds = new Set(presetLaws.map((law) => law.id))
   const presetArticleCount = data.articles.filter((article) => !article.deletedAt && presetLawIds.has(article.lawId)).length
+  const lawArticles = useMemo(() => data.articles.filter((article) => article.lawId === selectedLawId && !article.deletedAt).sort(compareArticleNumbers), [data.articles, selectedLawId])
+  const systemMap = useMemo(() => buildLawSystemMap(lawArticles), [lawArticles])
+  const nodeByAnchor = useMemo(() => new Map(flattenSystemNodes(systemMap.roots).map((node) => [node.anchorArticleId, node.id])), [systemMap])
+  const subjectStats = useMemo(() => new Map(EXAM_SUBJECTS.map((subject) => {
+    const laws = activeLaws.filter((law) => (law.examSubject ?? classifyExamSubject(law)) === subject.id)
+    const articles = data.articles.filter((article) => !article.deletedAt && laws.some((law) => law.id === article.lawId))
+    const scores = articles.map((article) => data.mastery.find((item) => item.articleId === article.id)?.score ?? 0)
+    return [subject.id, { laws, articles, average: scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0, learned: scores.filter((score) => score > 0).length, mastered: scores.filter((score) => score >= 90).length }] as const
+  })), [activeLaws, data.articles, data.mastery])
+  const globalResults = useMemo(() => {
+    const query = librarySearch.trim().toLocaleLowerCase('zh-Hant')
+    if (!query) return []
+    return data.articles.filter((article) => {
+      const law = activeLaws.find((item) => item.id === article.lawId)
+      return !article.deletedAt && law && `${law.name} ${law.shortName} ${article.articleNumber} ${article.title} ${article.text}`.toLocaleLowerCase('zh-Hant').includes(query)
+    }).slice(0, 12)
+  }, [activeLaws, data.articles, librarySearch])
   const articles = useMemo(() => data.articles.filter((article) => article.lawId === selectedLawId
     && !article.deletedAt
     && (article.articleNumber.includes(search) || article.text.includes(search) || article.title.includes(search)))
@@ -56,13 +81,51 @@ export function ArticlesPage(): JSX.Element {
     : '{"articles":[{"articleNumber":"1","text":"法條內容"}]}'
   const officialPreview = preview.some((draft) => draft.source?.type === 'moj-law')
 
+  useEffect(() => {
+    if (!selectedLawId || !lawArticles.length) return
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting).sort((left, right) => right.intersectionRatio - left.intersectionRatio)[0]
+      const articleId = visible?.target.getAttribute('data-law-article-id')
+      if (articleId) setActiveNodeId(nodeByAnchor.get(articleId))
+    }, { rootMargin: '-92px 0px -55% 0px', threshold: [0, .25, .75, 1] })
+    document.querySelectorAll<HTMLElement>('[data-law-article-id]').forEach((element) => observer.observe(element))
+    return () => observer.disconnect()
+  }, [lawArticles.length, nodeByAnchor, selectedLawId, visibleCount, search])
+
   function changeLaw(id: string): void {
     setSelectedLawId(id)
     setSearch('')
     setVisibleCount(40)
     const nextLaw = activeLaws.find((law) => law.id === id)
     setSortMode(isCriminalProcedureLaw(nextLaw) ? 'frequency' : 'number')
-    setSearchParams(id ? { law: id } : {})
+    const nextSubject = activeLaws.find((law) => law.id === id)?.examSubject ?? (activeLaws.find((law) => law.id === id) ? classifyExamSubject(activeLaws.find((law) => law.id === id)!) : undefined)
+    setSelectedSubject(nextSubject)
+    setSearchParams(id ? { law: id, ...(nextSubject ? { subject: nextSubject } : {}) } : {})
+  }
+
+  function chooseSubject(subject: Exclude<ExamSubject, 'unclassified'>): void {
+    const laws = activeLaws.filter((law) => (law.examSubject ?? classifyExamSubject(law)) === subject)
+    setSelectedSubject(subject)
+    setSearch('')
+    if (laws.length === 1) {
+      changeLaw(laws[0].id)
+      return
+    }
+    setSelectedLawId('')
+    setSearchParams({ subject })
+  }
+
+  function scrollToArticle(articleId: string): void {
+    const index = articles.findIndex((article) => article.id === articleId)
+    if (index < 0) {
+      setSearch('')
+      setSortMode('number')
+      const sortedIndex = lawArticles.findIndex((article) => article.id === articleId)
+      setVisibleCount(Math.max(40, sortedIndex + 1))
+    } else {
+      setVisibleCount(Math.max(visibleCount, index + 1))
+    }
+    window.setTimeout(() => document.querySelector(`[data-law-article-id="${articleId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   }
 
   function generatePreview(): void {
@@ -110,6 +173,8 @@ export function ArticlesPage(): JSX.Element {
           name: externalName.trim(),
           shortName: externalShortName.trim() || externalName.trim(),
           category: '警察法規',
+          examSubject: externalSubject,
+          lawType: externalLawType,
           importance: 3,
           examScope: true,
           notes: `外部警察法規命令匯入${externalSourceUrl.trim() ? `；來源：${externalSourceUrl.trim()}` : ''}。內容由使用者提供，請自行核對現行版本。`,
@@ -134,6 +199,8 @@ export function ArticlesPage(): JSX.Element {
         name: law.name,
         shortName: law.name.replace(/^中華民國/, '') || law.name,
         category: law.category || law.level || '官方法規',
+        examSubject: classifyExamSubject({ name: law.name, shortName: law.name, category: law.category || law.level || '官方法規', source: drafts[0]?.source }),
+        lawType: classifyLawType({ name: law.name, source: drafts[0]?.source }),
         importance: 3,
         examScope: true,
         notes: `由法務部全國法規資料庫建立；官方資料更新日期：${source.dataUpdatedAt}。`,
@@ -205,23 +272,25 @@ export function ArticlesPage(): JSX.Element {
     <PageHeader
       eyebrow="LIBRARY / LAW ARTICLES"
       title="法條瀏覽"
-      description="首次使用會自動建立目前四科法條核心；之後可從全國法規資料庫挑選，或匯入外部警察法規命令。"
+      description="先從五大考科進入法規，再以體系圖建立架構，最後閱讀全文、複習考頻與整理筆記。"
       actions={selectedLawId && <Button variant="secondary" onClick={() => { setImportOpen(true); setPreview((items) => [...items, emptyDraft()]) }}>＋ 手動新增</Button>}
     />
     {error && <Notice tone="warning">{error}</Notice>}
     {message && <Notice tone="success">{message}</Notice>}
 
-    <section className="article-browser-selector card">
-      <div>
-        <p className="eyebrow">BROWSER / 法條瀏覽</p>
-        <h2>選擇要閱讀的法規</h2>
-        <p className="muted-text">先選擇法規，再瀏覽條文；每一條都可以獨立保存筆記與考題。</p>
-      </div>
-      <label>目前法規<select value={selectedLawId} onChange={(event) => changeLaw(event.target.value)} disabled={!activeLaws.length}>
-        {!activeLaws.length && <option value="">尚未建立法規</option>}
-        {activeLaws.map((law) => <option value={law.id} key={law.id}>{law.name}（{law.shortName}）</option>)}
-      </select></label>
-    </section>
+    {!selectedLaw && <>
+      <section className="article-library-search card">
+        <div><p className="eyebrow">LIBRARY SEARCH / 全域搜尋</p><h2>搜尋法規、條號或全文</h2><p className="muted-text">從考科首頁直接找法規、條號、標題與關鍵字。</p></div>
+        <label className="search-box"><span>⌕</span><input value={librarySearch} onChange={(event) => setLibrarySearch(event.target.value)} placeholder="例如：刑法 271、羈押、警察職權" /></label>
+        {globalResults.length > 0 && <div className="library-search-results">{globalResults.map((article) => { const law = activeLaws.find((item) => item.id === article.lawId); return <button type="button" key={article.id} onClick={() => { if (law) { setSelectedSubject(law.examSubject ?? classifyExamSubject(law)); changeLaw(law.id) } }}><strong>{law?.shortName ?? law?.name} · 第 {article.articleNumber} 條</strong><span>{article.title || article.text.slice(0, 92)}</span></button> })}</div>}
+      </section>
+      <section className="exam-subject-grid" aria-label="五大考科">
+        {EXAM_SUBJECTS.map((subject) => { const stats = subjectStats.get(subject.id)!; return <button type="button" className={`exam-subject-card card ${selectedSubject === subject.id ? 'is-selected' : ''}`} key={subject.id} onClick={() => chooseSubject(subject.id)}><span className="exam-subject-symbol">{subject.shortLabel.slice(0, 1)}</span><span className="exam-subject-copy"><small>EXAM SUBJECT</small><strong>{subject.label}</strong><em>{subject.description}</em></span><span className="exam-subject-stats"><b>{stats.laws.length} 部法規</b><span>{stats.articles.length} 條 · 已學 {stats.learned} · 已精通 {stats.mastered}</span><ProgressBar value={stats.average} showValue={false} tone={stats.average >= 80 ? 'green' : 'blue'} /><small>整體熟練度 {Math.round(stats.average)}%</small></span></button> })}
+      </section>
+      {selectedSubject && <section className="law-chooser card"><div className="card-heading"><div><p className="eyebrow">{EXAM_SUBJECT_LABELS[selectedSubject]} / LAW COLLECTION</p><h2>選擇要閱讀的法規</h2><p className="muted-text">核心法規、子法與施行規則分開呈現；選取後會直接進入全文與體系圖。</p></div><Button variant="ghost" onClick={() => { setSelectedSubject(undefined); setSearchParams({}) }}>返回五大考科</Button></div>{selectedSubjectLaws.length ? <div className="law-chooser-grid">{selectedSubjectLaws.map((law) => { const lawArticleCount = data.articles.filter((article) => article.lawId === law.id && !article.deletedAt).length; const average = lawArticleCount ? data.articles.filter((article) => article.lawId === law.id && !article.deletedAt).reduce((sum, article) => sum + (data.mastery.find((item) => item.articleId === article.id)?.score ?? 0), 0) / lawArticleCount : 0; return <button type="button" className="law-chooser-card" key={law.id} onClick={() => changeLaw(law.id)}><span><strong>{law.name}</strong><small>{LAW_TYPE_LABELS[law.lawType ?? classifyLawType(law)]} · {lawArticleCount} 條法條</small></span><span><b>{Math.round(average)}%</b><em>熟練度</em></span></button> })}</div> : <EmptyState icon="⌘" title="這個考科尚未有法規" description="可在下方匯入工具從全國法規資料庫挑選，或匯入外部法規。" />}</section>}
+    </>}
+
+    {selectedLaw && <div className="law-breadcrumb"><button type="button" onClick={() => { setSelectedLawId(''); setSearchParams(selectedSubject ? { subject: selectedSubject } : {}) }}>法條瀏覽</button><span>›</span><button type="button" onClick={() => { setSelectedLawId(''); setSearchParams(selectedSubject ? { subject: selectedSubject } : {}) }}>{EXAM_SUBJECT_LABELS[selectedLaw.examSubject ?? classifyExamSubject(selectedLaw)]}</button><span>›</span><strong>{selectedLaw.name}</strong></div>}
 
     <section className={`import-workbench card ${importOpen ? 'is-open' : 'is-collapsed'}`}>
       <div className="workbench-head">
@@ -243,6 +312,8 @@ export function ArticlesPage(): JSX.Element {
               <label>簡稱（可留白）<input value={externalShortName} onChange={(event) => setExternalShortName(event.target.value)} placeholder="例如：○○作業規定" /></label>
               <label>來源網址（可留白）<input value={externalSourceUrl} onChange={(event) => setExternalSourceUrl(event.target.value)} placeholder="https://…" /></label>
               <label>資料格式<select value={externalFormat} onChange={(event) => setExternalFormat(event.target.value as ExternalFormat)}><option value="text">純文字 / TXT</option><option value="json">JSON</option></select></label>
+              <label>所屬考科<select value={externalSubject} onChange={(event) => setExternalSubject(event.target.value as Exclude<ExamSubject, 'unclassified'>)}>{EXAM_SUBJECTS.map((subject) => <option value={subject.id} key={subject.id}>{subject.label}</option>)}</select></label>
+              <label>法規類型<select value={externalLawType} onChange={(event) => setExternalLawType(event.target.value as LawType)}>{Object.entries(LAW_TYPE_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
             </div>
             <textarea className="import-textarea" value={input} onChange={(event) => setInput(event.target.value)} placeholder={externalFormat === 'text' ? '例如：\n第1條\n法規命令內容……\n\n第2條\n下一條內容……' : '{"articles":[{"articleNumber":"1","text":"法規命令內容"}]}' } />
             <div className="import-actions"><input ref={fileInput} type="file" accept=".txt,.json,text/plain,application/json" hidden onChange={(event) => void readFile(event)} /><Button variant="secondary" onClick={() => fileInput.current?.click()}>選擇 TXT／JSON</Button><Button onClick={() => void generateExternalPreview()}>建立外部法規預覽</Button></div>
@@ -250,7 +321,7 @@ export function ArticlesPage(): JSX.Element {
           </div>
         : activeLaws.length
           ? <div className="manual-import-panel"><textarea className="import-textarea" value={input} onChange={(event) => setInput(event.target.value)} placeholder={importPlaceholder} /><div className="import-actions"><input ref={fileInput} type="file" accept=".txt,.json,text/plain,application/json" hidden onChange={(event) => void readFile(event)} /><Button variant="secondary" onClick={() => fileInput.current?.click()}>選擇檔案</Button><Button onClick={generatePreview}>產生拆分預覽</Button></div></div>
-          : <Notice tone="warning"><div>TXT 與 JSON 必須先指定本機法規；你也可以切回「全國法規資料庫」，系統會在選取條文時自動建立法規。</div><Button variant="ghost" onClick={() => navigate('/laws')}>前往法規管理</Button></Notice>}</div>)}
+          : <Notice tone="warning"><div>TXT 與 JSON 必須先指定本機法規；請先從上方五大考科選擇法規，或切回「全國法規資料庫」建立法規。</div><Button variant="ghost" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>回到考科選擇</Button></Notice>}</div>)}
     </section>
 
     {preview.length > 0 && <section className="preview-section card" id="import-preview">
@@ -266,6 +337,8 @@ export function ArticlesPage(): JSX.Element {
         <button className="icon-button danger-icon" onClick={() => setPreview((items) => items.filter((_, itemIndex) => itemIndex !== index))} aria-label="移除預覽項目">×</button>
       </div>)}</div>
     </section>}
+
+    {selectedLaw && <LawStructureMap lawName={selectedLaw.name} map={systemMap} mastery={data.mastery} activeNodeId={activeNodeId} onSelectArticle={scrollToArticle} />}
 
     {selectedLaw && isCriminalProcedure && <section className="frequency-overview card">
       <div className="frequency-overview-head">
@@ -299,7 +372,7 @@ function ArticleRow({ article, onStudy, onEdit, onTrain, onDelete }: { article: 
   const data = useAppData()
   const mastery = data.mastery.find((item) => item.articleId === article.id)
   const questionCount = article.questions?.filter(Boolean).length ?? 0
-  return <article className="article-row card"><div className="article-number">第<strong>{article.articleNumber}</strong>條</div><div className="article-row-body"><div className="article-row-title"><h3>{article.title || '未命名條文'}</h3>{article.examFrequency && <p className="article-frequency-topics">{article.examFrequency.topics.slice(0, 3).map((topic) => `#${topic.rank} ${topic.title}`).join(' · ')}</p>}<ArticleTextBlocks text={article.text} /></div><div className="article-row-tags">{article.examFrequency && <span className={`frequency-chip tier-${article.examFrequency.tier.toLowerCase()}`}>#{article.examFrequency.bestRank} · {article.examFrequency.tier}級 · {article.examFrequency.totalCount}次</span>}{article.mustMemorize && <span className="must-tag">必背</span>}{article.isBoss && <span className="boss-tag">魔王</span>}{article.source && <span className="official-source-badge">官方匯入</span>}{article.notes.trim() && <span className="study-tag">有筆記</span>}{questionCount > 0 && <span className="study-tag">考題 {questionCount}</span>}<StatusBadge status={mastery?.status ?? '未開始'} /></div></div><div className="article-row-progress"><strong>{Math.round(mastery?.score ?? 0)}%</strong><ProgressBar value={mastery?.score ?? 0} showValue={false} tone={(mastery?.score ?? 0) >= 80 ? 'green' : 'blue'} /></div><div className="row-actions"><Button variant="secondary" onClick={onTrain}>訓練</Button><Button variant="ghost" onClick={onStudy}>筆記／考題</Button><Button variant="ghost" onClick={onEdit}>編輯</Button><button className="icon-button danger-icon" onClick={onDelete} aria-label="封存法條">×</button></div></article>
+  return <article className="article-row card" id={`law-article-${article.id}`} data-law-article-id={article.id}><div className="article-number">第<strong>{article.articleNumber}</strong>條</div><div className="article-row-body"><div className="article-row-title"><h3>{article.title || '未命名條文'}</h3>{article.examFrequency && <p className="article-frequency-topics">{article.examFrequency.topics.slice(0, 3).map((topic) => `#${topic.rank} ${topic.title}`).join(' · ')}</p>}<ArticleTextBlocks text={article.text} /></div><div className="article-row-tags">{article.examFrequency && <span className={`frequency-chip tier-${article.examFrequency.tier.toLowerCase()}`}>#{article.examFrequency.bestRank} · {article.examFrequency.tier}級 · {article.examFrequency.totalCount}次</span>}{article.mustMemorize && <span className="must-tag">必背</span>}{article.isBoss && <span className="boss-tag">魔王</span>}{article.source && <span className="official-source-badge">官方匯入</span>}{article.notes.trim() && <span className="study-tag">有筆記</span>}{questionCount > 0 && <span className="study-tag">考題 {questionCount}</span>}<StatusBadge status={mastery?.status ?? '未開始'} /></div></div><div className="article-row-progress"><strong>{Math.round(mastery?.score ?? 0)}%</strong><ProgressBar value={mastery?.score ?? 0} showValue={false} tone={(mastery?.score ?? 0) >= 80 ? 'green' : 'blue'} /></div><div className="row-actions"><Button variant="secondary" onClick={onTrain}>訓練</Button><Button variant="ghost" onClick={onStudy}>筆記／考題</Button><Button variant="ghost" onClick={onEdit}>編輯</Button><button className="icon-button danger-icon" onClick={onDelete} aria-label="封存法條">×</button></div></article>
 }
 
 function ArticleTextBlocks({ text }: { text: string }): JSX.Element {
@@ -333,4 +406,8 @@ function emptyDraft(): ImportArticleDraft {
 
 function normalizeName(value: string): string {
   return value.trim().toLocaleLowerCase('zh-Hant').replace(/[\s　]/g, '')
+}
+
+function asExamSubject(value: string | null): ExamSubject | undefined {
+  return value && (value in EXAM_SUBJECT_LABELS) ? value as ExamSubject : undefined
 }

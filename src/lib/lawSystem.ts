@@ -1,6 +1,7 @@
 import type { LawArticle } from '../types'
 
 export type SystemLevel = '編' | '章' | '節' | '款' | '目' | '未分章'
+const SYSTEM_LEVEL_ORDER: SystemLevel[] = ['編', '章', '節', '款', '目', '未分章']
 
 export interface LawSystemNode {
   id: string
@@ -11,6 +12,7 @@ export interface LawSystemNode {
   children: LawSystemNode[]
   startArticle: string
   endArticle: string
+  anchorArticleId: string
 }
 
 export interface LawSystemMap {
@@ -33,26 +35,37 @@ export function buildLawSystemMap(input: LawArticle[]): LawSystemMap {
   const articles = input.filter((article) => !article.deletedAt).sort(compareArticleNumbers)
   const roots: LawSystemNode[] = []
   let ungrouped: LawSystemNode | undefined
-  let current: LawSystemNode | undefined
+  const stack: LawSystemNode[] = []
   let sequence = 0
 
   for (const article of articles) {
     const parsed = parseHeading(article.title)
-    if (parsed && (!current || current.label !== parsed.label)) {
-      current = createNode(`${parsed.level}-${sequence += 1}`, parsed.level, parsed.label, article.articleNumber)
-      roots.push(current)
+    if (parsed) {
+      const levelIndex = SYSTEM_LEVEL_ORDER.indexOf(parsed.level)
+      while (stack.length && SYSTEM_LEVEL_ORDER.indexOf(stack[stack.length - 1].level) >= levelIndex) stack.pop()
+      const parent = stack[stack.length - 1]
+      const previous = parent?.children[parent.children.length - 1] ?? roots[roots.length - 1]
+      if (!previous || previous.level !== parsed.level || previous.label !== parsed.label) {
+        const node = createNode(`${parsed.level}-${sequence += 1}`, parsed.level, parsed.label, article)
+        if (parent) parent.children.push(node)
+        else roots.push(node)
+        stack.push(node)
+      } else {
+        stack.push(previous)
+      }
     }
 
-    let target = current
+    let target = stack[stack.length - 1]
     if (!target) {
       if (!ungrouped) {
-        ungrouped = createNode('ungrouped', '未分章', '未分章（依條號排列）', article.articleNumber)
+        ungrouped = createNode('ungrouped', '未分章', '條號導覽（官方未提供章節）', article)
         roots.push(ungrouped)
       }
       target = ungrouped
     }
     target.directArticleIds.push(article.id)
-    addArticle(target, article)
+    if (stack.length) stack.forEach((node) => addArticle(node, article))
+    else addArticle(target, article)
   }
 
   return { roots, articleCount: articles.length, nodeCount: countNodes(roots) }
@@ -69,8 +82,8 @@ function parseHeading(raw: string): { level: SystemLevel; label: string } | null
   return match ? { level: match[1] as SystemLevel, label } : null
 }
 
-function createNode(id: string, level: SystemLevel, label: string, articleNumber: string): LawSystemNode {
-  return { id, level, label, articleIds: [], directArticleIds: [], children: [], startArticle: articleNumber, endArticle: articleNumber }
+function createNode(id: string, level: SystemLevel, label: string, article: LawArticle): LawSystemNode {
+  return { id, level, label, articleIds: [], directArticleIds: [], children: [], startArticle: article.articleNumber, endArticle: article.articleNumber, anchorArticleId: article.id }
 }
 
 function addArticle(node: LawSystemNode, article: LawArticle): void {

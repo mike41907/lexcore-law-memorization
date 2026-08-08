@@ -31,6 +31,8 @@ import { DEFAULT_PROGRESS, DEFAULT_SETTINGS, ACHIEVEMENT_DEFINITIONS } from '../
 import { dateDiffInDays, makeId, normalizeSettings, nowIso, todayKey } from '../lib/utils'
 import { extractStoppedConstitutionArticleNumbers, findStoppedConstitutionArticles } from '../lib/constitution'
 import { applyCriminalProcedureFrequency } from '../lib/criminalProcedureFrequency'
+import { classifyExamSubject, classifyLawType, migrateLawCollectionsToExamSubjects } from '../lib/examSubjects'
+import type { ExamSubject, LawType } from '../types'
 
 export interface AppState {
   settings: AppSettings
@@ -55,6 +57,8 @@ interface CreateLawInput {
   importance: 1 | 2 | 3 | 4 | 5
   examScope: boolean
   notes: string
+  examSubject?: ExamSubject
+  lawType?: LawType
   source?: LawCollection['source']
 }
 
@@ -104,7 +108,10 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
     setLoading(true)
     try {
       const snapshot = await readSnapshot()
-      const stoppedConstitutionArticles = findStoppedConstitutionArticles(snapshot.laws, snapshot.articles)
+      const lawMigration = migrateLawCollectionsToExamSubjects(snapshot.laws)
+      if (lawMigration.changed.length) await putMany(STORE_NAMES.laws, lawMigration.changed)
+      const laws = lawMigration.laws
+      const stoppedConstitutionArticles = findStoppedConstitutionArticles(laws, snapshot.articles)
       const stoppedIds = new Set(stoppedConstitutionArticles.map((article) => article.id))
       const retirementTimestamp = nowIso()
       const retiredArticles = stoppedConstitutionArticles.length
@@ -114,7 +121,7 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
         await putMany(STORE_NAMES.articles, retiredArticles.filter((article) => stoppedIds.has(article.id)))
         await Promise.all(snapshot.tasks.filter((task) => stoppedIds.has(task.articleId)).map((task) => remove(STORE_NAMES.tasks, task.id)))
       }
-      const frequencyEnrichment = applyCriminalProcedureFrequency(snapshot.laws, retiredArticles)
+      const frequencyEnrichment = applyCriminalProcedureFrequency(laws, retiredArticles)
       const articles = frequencyEnrichment.articles
       if (frequencyEnrichment.changed.length) await putMany(STORE_NAMES.articles, frequencyEnrichment.changed)
       const timestamp = nowIso()
@@ -144,7 +151,7 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
       }
       setState({
         settings,
-        laws: snapshot.laws,
+        laws,
         articles,
         sections: snapshot.sections,
         sessions: snapshot.sessions,
@@ -177,7 +184,7 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
     if (!name) throw new Error('法規名稱不可空白。')
     if (current.laws.some((law) => !law.deletedAt && law.name.trim().toLowerCase() === name.toLowerCase())) throw new Error('法規名稱重複，請改用其他名稱。')
     const timestamp = nowIso()
-    const law: LawCollection = { id: makeId('law'), ...input, name, shortName: input.shortName.trim() || name, category: input.category.trim() || '未分類', notes: input.notes.trim(), createdAt: timestamp, updatedAt: timestamp }
+    const law: LawCollection = { id: makeId('law'), ...input, name, shortName: input.shortName.trim() || name, category: input.category.trim() || '未分類', examSubject: input.examSubject ?? classifyExamSubject(input), lawType: input.lawType ?? classifyLawType(input), notes: input.notes.trim(), createdAt: timestamp, updatedAt: timestamp }
     await put(STORE_NAMES.laws, law)
     await loadState()
     return law
@@ -264,6 +271,8 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
             name: item.summary.name,
             shortName: item.spec.shortName,
             category: item.spec.subject,
+            examSubject: item.spec.subject === '刑法' ? 'criminal-law' : item.spec.subject === '憲法' ? 'constitution' : item.spec.subject === '刑事訴訟法' ? 'criminal-procedure' : String(item.spec.subject) === '警察勤務' ? 'police-duty' : 'police-law',
+            lawType: existingLaw?.lawType ?? classifyLawType(item.summary),
             importance: Math.max(existingLaw.importance, 4) as 1 | 2 | 3 | 4 | 5,
             examScope: true,
             notes: appendNote(existingLaw.notes, scopeNote),
@@ -276,6 +285,8 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
             name: item.summary.name,
             shortName: item.spec.shortName,
             category: item.spec.subject,
+            examSubject: item.spec.subject === '刑法' ? 'criminal-law' : item.spec.subject === '憲法' ? 'constitution' : item.spec.subject === '刑事訴訟法' ? 'criminal-procedure' : String(item.spec.subject) === '警察勤務' ? 'police-duty' : 'police-law',
+            lawType: classifyLawType(item.summary),
             importance: 4,
             examScope: true,
             notes: scopeNote,

@@ -1,4 +1,6 @@
 export type ISODate = string
+export type ExamSubject = 'criminal-law' | 'constitution' | 'police-law' | 'police-duty' | 'criminal-procedure' | 'unclassified'
+export type LawType = 'core' | 'sub-law' | 'implementing-rules' | 'measure' | 'regulation' | 'order' | 'other'
 export type TrainingMode = 'reading' | 'comprehension' | 'numbers' | 'keywords' | 'cloze' | 'ordering' | 'prompt' | 'dictation' | 'surprise'
 export type ArticleStatus = '未開始' | '初次接觸' | '學習中' | '尚未穩定' | '接近熟練' | '已熟練' | '已精通' | '高風險' | '需要重新學習'
 export type TaskType = 'new' | 'due' | 'yesterday-error' | 'seven-day' | 'high-risk' | 'surprise' | 'mastery-check'
@@ -57,6 +59,8 @@ export interface LawCollection {
   name: string
   shortName: string
   category: string
+  examSubject?: ExamSubject
+  lawType?: LawType
   importance: 1 | 2 | 3 | 4 | 5
   examScope: boolean
   notes: string

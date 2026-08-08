@@ -5,8 +5,6 @@ import { useAppData } from '../context/AppContext'
 const navigation = [
   { to: '/dashboard', label: '儀表板', icon: '◈' },
   { to: '/today', label: '今日任務', icon: '▣' },
-  { to: '/laws', label: '法規管理', icon: '⌘' },
-  { to: '/systems', label: '法規體系圖', icon: '◇' },
   { to: '/articles', label: '法條瀏覽', icon: '≡' },
   { to: '/training', label: '訓練模式', icon: '✦' },
   { to: '/errors', label: '錯題中心', icon: '△' },
@@ -34,7 +32,7 @@ export function AppShell(): JSX.Element {
           <div className="brand-mark">法</div>
           <div>
             <p className="brand-name">法典</p>
-            <p className="brand-subtitle">LEXCORE / 0.11.1</p>
+            <p className="brand-subtitle">LEXCORE / 0.12.0</p>
           </div>
         </div>
         <div className="profile-strip">
