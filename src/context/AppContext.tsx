@@ -557,7 +557,7 @@ function updateProgress(progress: UserProgress, answer: AnswerRecord, timestamp:
     : progress.lastStudyDate && dateDiffInDays(progress.lastStudyDate, date) === 1
       ? progress.streakDays + 1
       : 1
-  const xp = answer.mode === 'dictation' || answer.mode === 'surprise' ? (answer.score >= 95 ? 45 : 25) : answer.mode === 'reading' ? 3 : 12
+  const xp = answer.mode === 'comprehension' || answer.mode === 'numbers' || answer.mode === 'keywords' || answer.mode === 'dictation' || answer.mode === 'surprise' ? (answer.score >= 95 ? 45 : 25) : answer.mode === 'reading' ? 3 : 12
   const experience = progress.experience + xp
   return {
     ...progress,
@@ -566,7 +566,7 @@ function updateProgress(progress: UserProgress, answer: AnswerRecord, timestamp:
     streakDays: nextStreak,
     totalStudyDays: dates.size,
     totalAnswers: progress.totalAnswers + 1,
-    combo: answer.mode === 'dictation' && answer.score >= 95 && answer.usedHints === 0 && !answer.comparison.highWeightError ? progress.combo + 1 : 0,
+    combo: (answer.mode === 'comprehension' || answer.mode === 'keywords' || answer.mode === 'dictation') && answer.score >= 95 && answer.usedHints === 0 && !answer.comparison.highWeightError ? progress.combo + 1 : 0,
     lastStudyDate: date,
     studyDates: Array.from(dates).sort(),
     lastEarnedAt: timestamp,
@@ -579,7 +579,7 @@ async function unlockAchievements(input: { current: AppState; nextProgress: User
   const perfect = input.answer.score >= 100
   const masteryCount = input.current.mastery.filter((item) => item.status === '已精通').length + (input.mastery.status === '已精通' ? 1 : 0)
   const shouldUnlock = new Set<string>(['first-article'])
-  if (input.answer.mode === 'dictation') shouldUnlock.add('first-dictation')
+  if (input.answer.mode === 'comprehension' || input.answer.mode === 'dictation') shouldUnlock.add('first-dictation')
   if (perfect) shouldUnlock.add('first-perfect')
   if (input.nextProgress.streakDays >= 3) shouldUnlock.add('streak-3')
   if (input.nextProgress.streakDays >= 7) shouldUnlock.add('streak-7')

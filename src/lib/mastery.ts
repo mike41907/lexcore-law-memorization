@@ -37,15 +37,15 @@ export function updateMastery(
   const current = previous ?? createInitialMastery(answer.articleId, now)
   const attempts = current.attempts + 1
   const averages = {
-    clozeAverage: updateAverage(current.clozeAverage, answer.mode === 'cloze' || answer.mode === 'numbers' ? answer.score : undefined, attempts),
+    clozeAverage: updateAverage(current.clozeAverage, answer.mode === 'cloze' ? answer.score : undefined, attempts),
     orderingAverage: updateAverage(current.orderingAverage, answer.mode === 'ordering' ? answer.score : undefined, attempts),
     promptAverage: updateAverage(current.promptAverage, answer.mode === 'prompt' ? answer.score : undefined, attempts),
-    dictationAverage: updateAverage(current.dictationAverage, answer.mode === 'dictation' || answer.mode === 'surprise' ? answer.score : undefined, attempts),
+    dictationAverage: updateAverage(current.dictationAverage, answer.mode === 'comprehension' || answer.mode === 'numbers' || answer.mode === 'keywords' || answer.mode === 'dictation' || answer.mode === 'surprise' ? answer.score : undefined, attempts),
   }
   const dates = new Set(current.fullDictationDates)
-  if ((answer.mode === 'dictation' || answer.mode === 'surprise') && answer.score >= 95 && answer.usedHints === 0 && !answer.comparison.highWeightError) dates.add(todayKey(now))
+  if ((answer.mode === 'comprehension' || answer.mode === 'ordering' || answer.mode === 'numbers' || answer.mode === 'keywords' || answer.mode === 'dictation' || answer.mode === 'surprise') && answer.score >= 95 && answer.usedHints === 0 && !answer.comparison.highWeightError) dates.add(todayKey(now))
   const fullDates = Array.from(dates).sort()
-  const fullDictationStreak = answer.mode === 'dictation' && answer.score >= 95 && answer.usedHints === 0 && !answer.comparison.highWeightError
+  const fullDictationStreak = (answer.mode === 'comprehension' || answer.mode === 'ordering' || answer.mode === 'numbers' || answer.mode === 'keywords' || answer.mode === 'dictation') && answer.score >= 95 && answer.usedHints === 0 && !answer.comparison.highWeightError
     ? current.fullDictationStreak + 1
     : 0
   const crossDayPasses = Math.max(current.crossDayPasses, review.crossDayPasses)

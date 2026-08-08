@@ -1,5 +1,5 @@
 export type ISODate = string
-export type TrainingMode = 'reading' | 'numbers' | 'cloze' | 'ordering' | 'prompt' | 'dictation' | 'surprise'
+export type TrainingMode = 'reading' | 'comprehension' | 'numbers' | 'keywords' | 'cloze' | 'ordering' | 'prompt' | 'dictation' | 'surprise'
 export type ArticleStatus = '未開始' | '初次接觸' | '學習中' | '尚未穩定' | '接近熟練' | '已熟練' | '已精通' | '高風險' | '需要重新學習'
 export type TaskType = 'new' | 'due' | 'yesterday-error' | 'seven-day' | 'high-risk' | 'surprise' | 'mastery-check'
 export type ErrorKind = 'missing' | 'extra' | 'replacement' | 'order' | 'keyword' | 'structure'
@@ -344,7 +344,7 @@ export const DEFAULT_PROGRESS: UserProgress = {
 
 export const ACHIEVEMENT_DEFINITIONS: Array<Pick<Achievement, 'key' | 'title' | 'description'>> = [
   { key: 'first-article', title: '初次落筆', description: '完成第一條法條的訓練。' },
-  { key: 'first-dictation', title: '第一次完整默寫', description: '完成第一次完整默寫。' },
+  { key: 'first-dictation', title: '第一次理解驗證', description: '完成第一次構成要件、法律效果與刑罰驗證。' },
   { key: 'first-perfect', title: '毫釐不差', description: '第一次取得 100 分。' },
   { key: 'streak-3', title: '三日不斷', description: '連續學習 3 天。' },
   { key: 'streak-7', title: '七日鍛鍊', description: '連續學習 7 天。' },

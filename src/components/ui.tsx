@@ -20,7 +20,7 @@ export function StatusBadge({ status }: { status: ArticleStatus }): JSX.Element 
 }
 
 export function ModeBadge({ mode }: { mode: TrainingMode }): JSX.Element {
-  const labels: Record<TrainingMode, string> = { reading: '閱讀', numbers: '數字陷阱', cloze: '填空', ordering: '排序', prompt: '提示默寫', dictation: '完整默寫', surprise: '突擊抽考' }
+  const labels: Record<TrainingMode, string> = { reading: '全文閱讀', comprehension: '要件／效果／刑罰', numbers: '數字陷阱', keywords: '應／得陷阱', cloze: '填空', ordering: '段落排序', prompt: '提示默寫', dictation: '完整默寫', surprise: '突擊抽考' }
   return <span className="mode-badge">{labels[mode]}</span>
 }
 
