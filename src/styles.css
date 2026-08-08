@@ -787,3 +787,105 @@ body { background: radial-gradient(circle at 72% -12%, color-mix(in srgb, var(--
 @media (max-width: 1180px) { .dashboard-metric-grid { grid-template-columns: repeat(3, 1fr); }.dashboard-subject-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }.law-structure-layout { grid-template-columns: 150px minmax(0, 1fr); } }
 @media (max-width: 980px) { .dashboard-hero-grid { grid-template-columns: 1fr; }.dashboard-subject-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.theme-choice { grid-template-columns: 1fr; }.law-structure-layout { grid-template-columns: 1fr; }.law-structure-outline { max-height: 150px; }.law-structure-outline > .law-outline-node { display: inline-block; width: 48%; vertical-align: top; }.law-structure-outline .law-outline-node > div { display: none; } }
 @media (max-width: 720px) { .dashboard-hero-grid, .dashboard-focus-grid, .dashboard-bottom-grid { gap: 12px; }.dashboard-countdown, .dashboard-today-card, .dashboard-focus-card { padding: 17px; }.dashboard-countdown { min-height: 250px; }.dashboard-countdown-value { margin-top: 18px; font-size: 70px; }.today-progress-line { gap: 14px; }.today-progress-ring { width: 94px; height: 94px; }.today-progress-ring::after { inset: 7px; }.today-progress-ring strong { font-size: 24px; }.dashboard-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }.dashboard-metric { padding: 12px; }.dashboard-metric strong { font-size: 18px; }.dashboard-section-heading { align-items: flex-start; flex-direction: column; gap: 8px; }.dashboard-subject-grid, .dashboard-focus-grid, .dashboard-bottom-grid { grid-template-columns: 1fr; }.dashboard-subject-card { padding: 15px; }.focus-actions { align-items: stretch; flex-direction: column; }.focus-actions .button { width: 100%; }.law-structure-layout { margin-top: 12px; }.law-structure-outline { max-height: 118px; padding: 9px; }.law-structure-outline > .law-outline-node { width: 100%; }.law-structure-outline .law-outline-node > div { display: none; }.theme-choice-options { grid-template-columns: 1fr; }.theme-choice-option { min-height: 46px; }.page-content { padding-left: 13px; padding-right: 13px; } }
+
+/* v0.13.1 light-mode contrast repair: replace legacy dark surfaces with theme tokens. */
+[data-theme="light"] {
+  --text-primary: #172238;
+  --text-secondary: #43536a;
+  --muted-2: #5b6b80;
+  --border: rgba(31, 49, 77, .22);
+  --line: rgba(31, 49, 77, .18);
+  --line-strong: rgba(31, 49, 77, .32);
+  --accent: #895b12;
+  --gold-soft: #7c4d09;
+  --info: #245bb4;
+  --success: #116c48;
+  --warning: #8a5700;
+  --danger: #b3314a;
+  --purple: #5d42a5;
+}
+
+[data-theme="light"] .mode-tabs button {
+  color: var(--text-secondary);
+  border-color: var(--border);
+  background: var(--surface-hover);
+}
+[data-theme="light"] .mode-tabs button:hover { color: var(--text-primary); background: #fff; }
+[data-theme="light"] .mode-tabs button.active {
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--accent) 62%, transparent);
+  background: linear-gradient(145deg, #fffaf0, #f4f7fb);
+  box-shadow: inset 0 2px var(--accent), 0 5px 16px rgba(44, 62, 91, .08);
+}
+[data-theme="light"] .mode-tab-number,
+[data-theme="light"] .mode-tabs small { color: var(--muted-2); }
+
+[data-theme="light"] .reading-panel,
+[data-theme="light"] .numeric-panel,
+[data-theme="light"] .comprehension-panel,
+[data-theme="light"] .keyword-panel,
+[data-theme="light"] .cloze-panel,
+[data-theme="light"] .ordering-panel,
+[data-theme="light"] .dictation-panel {
+  color: var(--text-primary);
+  background: linear-gradient(145deg, #ffffff, #f4f7fb);
+  box-shadow: inset 0 0 0 1px rgba(31, 49, 77, .03);
+}
+[data-theme="light"] .reading-controls,
+[data-theme="light"] .cloze-toolbar,
+[data-theme="light"] .hint-levels { color: var(--text-secondary); }
+[data-theme="light"] .cloze-toolbar button,
+[data-theme="light"] .hint-levels button,
+[data-theme="light"] .numeric-options button,
+[data-theme="light"] .comprehension-option,
+[data-theme="light"] .ordering-item {
+  color: var(--text-secondary);
+  border-color: var(--border);
+  background: #f8fafc;
+}
+[data-theme="light"] .cloze-toolbar button:hover,
+[data-theme="light"] .hint-levels button:hover,
+[data-theme="light"] .numeric-options button:hover:not(:disabled),
+[data-theme="light"] .comprehension-option:hover {
+  color: var(--text-primary);
+  background: #ffffff;
+}
+[data-theme="light"] .cloze-toolbar button.active,
+[data-theme="light"] .hint-levels button.active {
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, #ffffff);
+}
+[data-theme="light"] .numeric-question {
+  background: radial-gradient(circle at 50% 50%, rgba(137, 91, 18, .08), transparent 64%);
+}
+[data-theme="light"] .numeric-options button.selected,
+[data-theme="light"] .comprehension-option.selected {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--info) 11%, #ffffff);
+}
+[data-theme="light"] .numeric-options button.correct,
+[data-theme="light"] .comprehension-option.correct {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--success) 10%, #ffffff);
+}
+[data-theme="light"] .numeric-options button.wrong,
+[data-theme="light"] .comprehension-option.wrong {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--danger) 9%, #ffffff);
+}
+[data-theme="light"] .numeric-options button:disabled { color: var(--muted-2); opacity: .78; }
+[data-theme="light"] .numeric-question mark,
+[data-theme="light"] .keyword-question mark { color: var(--gold-soft); background: rgba(137, 91, 18, .12); }
+[data-theme="light"] .comparison-line,
+[data-theme="light"] .comparison-original,
+[data-theme="light"] .error-item { color: var(--text-secondary); }
+[data-theme="light"] .error-item { background: #f5f7fa; }
+[data-theme="light"] .button-ghost:hover:not(:disabled) { background: rgba(36, 91, 180, .08); }
+[data-theme="light"] .training-tip p,
+[data-theme="light"] .side-stat-list div,
+[data-theme="light"] .numeric-feedback p,
+[data-theme="light"] .ordering-item p { color: var(--text-secondary); }
+[data-theme="light"] .numeric-feedback.correct { background: rgba(17, 108, 72, .07); }
+[data-theme="light"] .numeric-feedback.wrong { background: rgba(179, 49, 74, .07); }
+[data-theme="light"] .hint-box { background: rgba(137, 91, 18, .08); }
