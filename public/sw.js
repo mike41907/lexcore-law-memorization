@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lexcore-v0.10.0'
+const CACHE_NAME = 'lexcore-v0.10.1'
 const SCOPE_URL = self.registration.scope
 const INDEX_URL = new URL('index.html', SCOPE_URL).href
 const APP_SHELL = [
