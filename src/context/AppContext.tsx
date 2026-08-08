@@ -30,6 +30,7 @@ import { compareText } from '../lib/compare'
 import { DEFAULT_PROGRESS, DEFAULT_SETTINGS, ACHIEVEMENT_DEFINITIONS } from '../types'
 import { dateDiffInDays, makeId, normalizeSettings, nowIso, todayKey } from '../lib/utils'
 import { extractStoppedConstitutionArticleNumbers, findStoppedConstitutionArticles } from '../lib/constitution'
+import { applyCriminalProcedureFrequency } from '../lib/criminalProcedureFrequency'
 
 export interface AppState {
   settings: AppSettings
@@ -106,21 +107,32 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
       const stoppedConstitutionArticles = findStoppedConstitutionArticles(snapshot.laws, snapshot.articles)
       const stoppedIds = new Set(stoppedConstitutionArticles.map((article) => article.id))
       const retirementTimestamp = nowIso()
-      const articles = stoppedConstitutionArticles.length
+      const retiredArticles = stoppedConstitutionArticles.length
         ? snapshot.articles.map((article) => stoppedIds.has(article.id) ? { ...article, deletedAt: retirementTimestamp, updatedAt: retirementTimestamp, notes: `${article.notes ? `${article.notes}\n` : ''}依憲法增修條文停止適用，已自動封存。` } : article)
         : snapshot.articles
       if (stoppedConstitutionArticles.length) {
-        await putMany(STORE_NAMES.articles, articles.filter((article) => stoppedIds.has(article.id)))
+        await putMany(STORE_NAMES.articles, retiredArticles.filter((article) => stoppedIds.has(article.id)))
         await Promise.all(snapshot.tasks.filter((task) => stoppedIds.has(task.articleId)).map((task) => remove(STORE_NAMES.tasks, task.id)))
       }
+      const frequencyEnrichment = applyCriminalProcedureFrequency(snapshot.laws, retiredArticles)
+      const articles = frequencyEnrichment.articles
+      if (frequencyEnrichment.changed.length) await putMany(STORE_NAMES.articles, frequencyEnrichment.changed)
       const timestamp = nowIso()
       const settings = normalizeSettings(snapshot.settings[0] ? { ...DEFAULT_SETTINGS, ...snapshot.settings[0] } : { ...DEFAULT_SETTINGS, createdAt: timestamp, updatedAt: timestamp })
       const progress = snapshot.progress[0] ?? { ...DEFAULT_PROGRESS }
       if (!snapshot.settings[0]) await put(STORE_NAMES.settings, settings)
       if (!snapshot.progress[0]) await put(STORE_NAMES.progress, progress)
 
-      let tasks = snapshot.tasks.filter((task) => !stoppedIds.has(task.articleId))
       const date = todayKey()
+      let tasks = snapshot.tasks.filter((task) => !stoppedIds.has(task.articleId))
+      if (frequencyEnrichment.changed.length) {
+        const superseded = tasks.filter((task) => task.date === date && task.type === 'new' && !task.completed)
+        if (superseded.length) {
+          await Promise.all(superseded.map((task) => remove(STORE_NAMES.tasks, task.id)))
+          const supersededIds = new Set(superseded.map((task) => task.id))
+          tasks = tasks.filter((task) => !supersededIds.has(task.id))
+        }
+      }
       if (articles.some((article) => !article.deletedAt)) {
         const generated = generateDailyTasks(articles, snapshot.reviews, snapshot.mastery, settings, date)
         const existingTodayKeys = new Set(tasks.filter((task) => task.date === date).map((task) => `${task.articleId}:${task.type}`))

@@ -8,6 +8,7 @@ import { extractNumericFacts, type NumericFact } from '../lib/numericTraining'
 import { createLegalQuizQuestions, type LegalQuizQuestion } from '../lib/legalQuiz'
 import { extractKeywordTraps, type KeywordTrap } from '../lib/keywordTraining'
 import { formatRelativeReview } from '../lib/utils'
+import { compareTrainingPriority } from '../lib/tasks'
 
 const modes: Array<{ value: TrainingMode; label: string; description: string }> = [
   { value: 'reading', label: '01 全文閱讀', description: '先完整閱讀原文，建立條文的整體架構。' },
@@ -23,7 +24,7 @@ export function TrainingPage(): JSX.Element {
   const { articleId } = useParams()
   const articles = useMemo(() => {
     const activeLawIds = new Set(data.laws.filter((law) => !law.deletedAt).map((law) => law.id))
-    return data.articles.filter((article) => !article.deletedAt && activeLawIds.has(article.lawId))
+    return data.articles.filter((article) => !article.deletedAt && activeLawIds.has(article.lawId)).sort(compareTrainingPriority)
   }, [data.articles, data.laws])
   const numericRows = useMemo(() => articles
     .map((item) => ({ article: item, facts: extractNumericFacts(item.text) }))
@@ -233,11 +234,12 @@ export function TrainingPage(): JSX.Element {
           {selectableArticles.map((item) => {
             const itemLaw = data.laws.find((lawItem) => lawItem.id === item.lawId)
             const factCount = mode === 'numbers' ? numericRows.find((row) => row.article.id === item.id)?.facts.length ?? 0 : 0
-            return <option value={item.id} key={item.id}>{itemLaw?.shortName ?? itemLaw?.name} · 第 {item.articleNumber} 條{mode === 'numbers' ? `（${factCount} 題）` : ''}</option>
+            return <option value={item.id} key={item.id}>{item.examFrequency ? `#${item.examFrequency.bestRank} ${item.examFrequency.tier}級 · ` : ''}{itemLaw?.shortName ?? itemLaw?.name} · 第 {item.articleNumber} 條{mode === 'numbers' ? `（${factCount} 題）` : ''}</option>
           })}
         </select>
       </label>
       <div className="training-metadata">
+        {article.examFrequency && <span className={`frequency-chip tier-${article.examFrequency.tier.toLowerCase()}`}>考頻 #{article.examFrequency.bestRank} · {article.examFrequency.tier}級 · {article.examFrequency.totalCount} 次</span>}
         {mastery && <StatusBadge status={mastery.status} />}
         {mode === 'numbers' ? <span>數字題庫 {numericRows.length} 條／{numericFactCount} 題</span> : mode === 'keywords' ? <span>應／得題庫 {selectableArticles.length} 條</span> : <span>熟練度 {Math.round(mastery?.score ?? 0)}%</span>}
         {review && <span>下次：{formatRelativeReview(review.nextReviewAt)}</span>}

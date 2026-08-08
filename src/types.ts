@@ -79,10 +79,28 @@ export interface LawArticle {
   includeDaily: boolean
   tags: string[]
   isBoss: boolean
+  examFrequency?: ArticleExamFrequency
   source?: OfficialImportSource
   createdAt: ISODate
   updatedAt: ISODate
   deletedAt?: ISODate
+}
+
+export type ExamFrequencyTier = 'S' | 'A' | 'B' | 'C'
+
+export interface ExamFrequencyTopicReference {
+  rank: number
+  category: string
+  title: string
+  count: number
+}
+
+export interface ArticleExamFrequency {
+  sourceId: 'criminal-procedure-120'
+  bestRank: number
+  totalCount: number
+  tier: ExamFrequencyTier
+  topics: ExamFrequencyTopicReference[]
 }
 
 export interface ArticleSection {

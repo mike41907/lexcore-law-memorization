@@ -10,9 +10,11 @@ import { POLICE_SERGEANT_EXAM_PRESET, type ExamPresetBundle, type ExamPresetImpo
 import { parseJsonImport, splitLawText } from '../lib/importer'
 import { splitArticleTextBlocks } from '../lib/articleStructure'
 import { compareArticleNumbers } from '../lib/lawSystem'
+import { CRIMINAL_PROCEDURE_FREQUENCY_TOPICS, compareExamFrequency, examFrequencyTier, isCriminalProcedureLaw } from '../lib/criminalProcedureFrequency'
 
 type ImportKind = 'official' | 'text' | 'json' | 'external'
 type ExternalFormat = 'text' | 'json'
+type ArticleSortMode = 'frequency' | 'number'
 
 export function ArticlesPage(): JSX.Element {
   const data = useAppData()
@@ -29,19 +31,26 @@ export function ArticlesPage(): JSX.Element {
   const [importOpen, setImportOpen] = useState(false)
   const [preview, setPreview] = useState<ImportArticleDraft[]>([])
   const [search, setSearch] = useState('')
+  const [sortMode, setSortMode] = useState<ArticleSortMode>('frequency')
+  const [visibleCount, setVisibleCount] = useState(40)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [editing, setEditing] = useState<LawArticle | null>(null)
   const [studyEditing, setStudyEditing] = useState<LawArticle | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const selectedLaw = activeLaws.find((law) => law.id === selectedLawId)
+  const isCriminalProcedure = isCriminalProcedureLaw(selectedLaw)
   const presetLawNames = useMemo(() => new Set(POLICE_SERGEANT_EXAM_PRESET.laws.map((law) => normalizeName(law.name))), [])
   const presetLaws = activeLaws.filter((law) => presetLawNames.has(normalizeName(law.name)))
   const presetLawIds = new Set(presetLaws.map((law) => law.id))
   const presetArticleCount = data.articles.filter((article) => !article.deletedAt && presetLawIds.has(article.lawId)).length
   const articles = useMemo(() => data.articles.filter((article) => article.lawId === selectedLawId
     && !article.deletedAt
-    && (article.articleNumber.includes(search) || article.text.includes(search) || article.title.includes(search))).sort(compareArticleNumbers), [data.articles, search, selectedLawId])
+    && (article.articleNumber.includes(search) || article.text.includes(search) || article.title.includes(search)))
+    .sort(sortMode === 'frequency' && isCriminalProcedure
+      ? (left, right) => compareExamFrequency(left, right) || compareArticleNumbers(left, right)
+      : compareArticleNumbers), [data.articles, isCriminalProcedure, search, selectedLawId, sortMode])
+  const visibleArticles = articles.slice(0, visibleCount)
   const importPlaceholder = importKind === 'text' || importKind === 'external'
     ? '例如：\n第1條\n法條內容……\n\n第 2 條\n下一條內容……'
     : '{"articles":[{"articleNumber":"1","text":"法條內容"}]}'
@@ -50,6 +59,9 @@ export function ArticlesPage(): JSX.Element {
   function changeLaw(id: string): void {
     setSelectedLawId(id)
     setSearch('')
+    setVisibleCount(40)
+    const nextLaw = activeLaws.find((law) => law.id === id)
+    setSortMode(isCriminalProcedureLaw(nextLaw) ? 'frequency' : 'number')
     setSearchParams(id ? { law: id } : {})
   }
 
@@ -255,9 +267,27 @@ export function ArticlesPage(): JSX.Element {
       </div>)}</div>
     </section>}
 
+    {selectedLaw && isCriminalProcedure && <section className="frequency-overview card">
+      <div className="frequency-overview-head">
+        <div><p className="eyebrow">EXAM FREQUENCY / 刑訴考頻</p><h2>120 個爭點，先把高頻區背熟</h2><p className="muted-text">依你提供的統計匯入。S 級為前 15 名、A 級為第 16–40 名；可明確對應的刑訴條文已自動提高每日任務與訓練順位。</p></div>
+        <div className="frequency-tier-summary"><span className="tier-s"><strong>15</strong>S 級</span><span className="tier-a"><strong>25</strong>A 級</span><span className="tier-b"><strong>35</strong>B 級</span><span className="tier-c"><strong>45</strong>C 級</span></div>
+      </div>
+      <details className="frequency-topic-details">
+        <summary>查看完整 120 個爭點排行</summary>
+        <div className="frequency-topic-list">{CRIMINAL_PROCEDURE_FREQUENCY_TOPICS.map((topic) => <div className="frequency-topic-row" key={topic.rank}>
+          <span className={`frequency-rank tier-${examFrequencyTier(topic.rank).toLowerCase()}`}>#{topic.rank}</span>
+          <span className="frequency-category">{topic.category}</span>
+          <strong>{topic.title}</strong>
+          <span className="frequency-count">{topic.count} 次</span>
+          <small>{topic.articleNumbers.length ? `刑訴法：${topic.articleNumbers.map((number) => `§${number}`).join('、')}` : '跨法規／實務爭點'}</small>
+        </div>)}</div>
+      </details>
+      <p className="frequency-source-note">考頻來源：使用者提供的 120 爭點圖片，並非官方統計；條文內容仍以系統內法務部官方資料為準。</p>
+    </section>}
+
     {selectedLaw ? <section className="article-browser">
-      <div className="section-toolbar"><div><p className="eyebrow">BROWSER / {selectedLaw.shortName}</p><h2>已儲存法條 <span className="count-chip">{articles.length}</span></h2></div><label className="search-box"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜尋條號、標題或文字" /></label></div>
-      {articles.length ? <div className="article-list">{articles.map((article) => <ArticleRow key={article.id} article={article} onStudy={() => setStudyEditing(article)} onEdit={() => setEditing(article)} onTrain={() => navigate(`/training/${article.id}`)} onDelete={() => void removeArticle(article)} />)}</div> : <EmptyState icon="≡" title="這部法規還沒有法條" description="從官方資料庫勾選條文，或貼上文字並產生預覽。" />}
+      <div className="section-toolbar"><div><p className="eyebrow">BROWSER / {selectedLaw.shortName}</p><h2>已儲存法條 <span className="count-chip">{articles.length}</span></h2></div><div className="article-toolbar-actions">{isCriminalProcedure && <div className="sort-segment" aria-label="法條排序方式"><button type="button" className={sortMode === 'frequency' ? 'active' : ''} onClick={() => { setSortMode('frequency'); setVisibleCount(40) }}>考頻優先</button><button type="button" className={sortMode === 'number' ? 'active' : ''} onClick={() => { setSortMode('number'); setVisibleCount(40) }}>條號順序</button></div>}<label className="search-box"><span>⌕</span><input value={search} onChange={(event) => { setSearch(event.target.value); setVisibleCount(40) }} placeholder="搜尋條號、標題或文字" /></label></div></div>
+      {articles.length ? <><div className="article-list">{visibleArticles.map((article) => <ArticleRow key={article.id} article={article} onStudy={() => setStudyEditing(article)} onEdit={() => setEditing(article)} onTrain={() => navigate(`/training/${article.id}`)} onDelete={() => void removeArticle(article)} />)}</div>{visibleCount < articles.length && <div className="article-load-more"><span>目前顯示 {visibleArticles.length}／{articles.length} 條</span><Button variant="secondary" onClick={() => setVisibleCount((count) => count + 40)}>再顯示 40 條</Button></div>}</> : <EmptyState icon="≡" title="這部法規還沒有法條" description="從官方資料庫勾選條文，或貼上文字並產生預覽。" />}
     </section> : <EmptyState icon="⌕" title="先搜尋並選擇法條" description="上方可直接搜尋全國法規資料庫；選好條文後，系統會自動建立對應的本機法規。" />}
 
     {editing && <Modal title={`編輯第 ${editing.articleNumber} 條`} onClose={() => setEditing(null)}><ArticleEditForm article={editing} onCancel={() => setEditing(null)} onSave={(article) => void saveArticle(article)} /></Modal>}
@@ -269,7 +299,7 @@ function ArticleRow({ article, onStudy, onEdit, onTrain, onDelete }: { article: 
   const data = useAppData()
   const mastery = data.mastery.find((item) => item.articleId === article.id)
   const questionCount = article.questions?.filter(Boolean).length ?? 0
-  return <article className="article-row card"><div className="article-number">第<strong>{article.articleNumber}</strong>條</div><div className="article-row-body"><div className="article-row-title"><h3>{article.title || '未命名條文'}</h3><ArticleTextBlocks text={article.text} /></div><div className="article-row-tags">{article.mustMemorize && <span className="must-tag">必背</span>}{article.isBoss && <span className="boss-tag">魔王</span>}{article.source && <span className="official-source-badge">官方匯入</span>}{article.notes.trim() && <span className="study-tag">有筆記</span>}{questionCount > 0 && <span className="study-tag">考題 {questionCount}</span>}<StatusBadge status={mastery?.status ?? '未開始'} /></div></div><div className="article-row-progress"><strong>{Math.round(mastery?.score ?? 0)}%</strong><ProgressBar value={mastery?.score ?? 0} showValue={false} tone={(mastery?.score ?? 0) >= 80 ? 'green' : 'blue'} /></div><div className="row-actions"><Button variant="secondary" onClick={onTrain}>訓練</Button><Button variant="ghost" onClick={onStudy}>筆記／考題</Button><Button variant="ghost" onClick={onEdit}>編輯</Button><button className="icon-button danger-icon" onClick={onDelete} aria-label="封存法條">×</button></div></article>
+  return <article className="article-row card"><div className="article-number">第<strong>{article.articleNumber}</strong>條</div><div className="article-row-body"><div className="article-row-title"><h3>{article.title || '未命名條文'}</h3>{article.examFrequency && <p className="article-frequency-topics">{article.examFrequency.topics.slice(0, 3).map((topic) => `#${topic.rank} ${topic.title}`).join(' · ')}</p>}<ArticleTextBlocks text={article.text} /></div><div className="article-row-tags">{article.examFrequency && <span className={`frequency-chip tier-${article.examFrequency.tier.toLowerCase()}`}>#{article.examFrequency.bestRank} · {article.examFrequency.tier}級 · {article.examFrequency.totalCount}次</span>}{article.mustMemorize && <span className="must-tag">必背</span>}{article.isBoss && <span className="boss-tag">魔王</span>}{article.source && <span className="official-source-badge">官方匯入</span>}{article.notes.trim() && <span className="study-tag">有筆記</span>}{questionCount > 0 && <span className="study-tag">考題 {questionCount}</span>}<StatusBadge status={mastery?.status ?? '未開始'} /></div></div><div className="article-row-progress"><strong>{Math.round(mastery?.score ?? 0)}%</strong><ProgressBar value={mastery?.score ?? 0} showValue={false} tone={(mastery?.score ?? 0) >= 80 ? 'green' : 'blue'} /></div><div className="row-actions"><Button variant="secondary" onClick={onTrain}>訓練</Button><Button variant="ghost" onClick={onStudy}>筆記／考題</Button><Button variant="ghost" onClick={onEdit}>編輯</Button><button className="icon-button danger-icon" onClick={onDelete} aria-label="封存法條">×</button></div></article>
 }
 
 function ArticleTextBlocks({ text }: { text: string }): JSX.Element {

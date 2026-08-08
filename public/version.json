@@ -1,6 +1,6 @@
 {
   "name": "LexCore",
-  "version": "0.10.3",
-  "cache": "lexcore-v0.10.3",
+  "version": "0.11.0",
+  "cache": "lexcore-v0.11.0",
   "deployment": "github-pages"
 }

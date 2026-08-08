@@ -1,6 +1,8 @@
 import type { AppSettings, DailyTask, LawArticle, MasteryRecord, ReviewSchedule, TaskType } from '../types'
 import { isReviewDue } from './scheduler'
 import { makeId, nowIso, todayKey } from './utils'
+import { compareExamFrequency, examFrequencyScore } from './criminalProcedureFrequency'
+import { compareArticleNumbers } from './lawSystem'
 
 export function generateDailyTasks(
   articles: LawArticle[],
@@ -9,7 +11,7 @@ export function generateDailyTasks(
   settings: AppSettings,
   date = todayKey(),
 ): DailyTask[] {
-  const active = articles.filter((article) => !article.deletedAt)
+  const active = articles.filter((article) => !article.deletedAt && article.includeDaily)
   const reviewMap = new Map(reviews.map((review) => [review.articleId, review]))
   const masteryMap = new Map(mastery.map((item) => [item.articleId, item]))
   const result: DailyTask[] = []
@@ -20,18 +22,18 @@ export function generateDailyTasks(
     result.push({ id: makeId('task'), date, articleId: article.id, type, estimatedMinutes, completed: false, createdAt: nowIso() })
   }
 
-  const due = active.filter((article) => isReviewDue(reviewMap.get(article.id))).sort((a, b) => priorityOf(b, masteryMap.get(b.id)) - priorityOf(a, masteryMap.get(a.id)))
+  const due = active.filter((article) => isReviewDue(reviewMap.get(article.id))).sort((a, b) => compareArticlePriority(a, b, masteryMap))
   due.slice(0, settings.dailyReviewLimit).forEach((article) => add(article, masteryMap.get(article.id)?.status === '高風險' ? 'high-risk' : 'due', 6))
 
   const yesterdayErrors = active.filter((article) => {
     const record = masteryMap.get(article.id)
     return Boolean(record && record.errorFrequency > 0.25)
   })
-  yesterdayErrors.slice(0, 3).forEach((article) => add(article, 'yesterday-error', 7))
+  yesterdayErrors.sort((a, b) => compareArticlePriority(a, b, masteryMap)).slice(0, 3).forEach((article) => add(article, 'yesterday-error', 7))
 
   const newArticles = active
     .filter((article) => !masteryMap.get(article.id)?.attempts)
-    .sort((a, b) => Number(b.mustMemorize) - Number(a.mustMemorize) || b.importance - a.importance)
+    .sort((a, b) => compareArticlePriority(a, b, masteryMap))
   newArticles.slice(0, settings.dailyNewArticles).forEach((article) => add(article, 'new', 8))
 
   if (settings.enableSurprise) {
@@ -53,6 +55,23 @@ export function taskTypeLabel(type: TaskType): string {
   return labels[type]
 }
 
+export function compareTrainingPriority(left: LawArticle, right: LawArticle): number {
+  return examFrequencyScore(right) - examFrequencyScore(left)
+    || compareExamFrequency(left, right)
+    || Number(right.mustMemorize) - Number(left.mustMemorize)
+    || right.importance - left.importance
+    || compareArticleNumbers(left, right)
+}
+
+function compareArticlePriority(left: LawArticle, right: LawArticle, mastery: Map<string, MasteryRecord>): number {
+  return priorityOf(right, mastery.get(right.id)) - priorityOf(left, mastery.get(left.id))
+    || compareTrainingPriority(left, right)
+}
+
 function priorityOf(article: LawArticle, record: MasteryRecord | undefined): number {
-  return (article.mustMemorize ? 50 : 0) + article.importance * 5 + (record?.status === '高風險' ? 30 : 0) + (record?.status === '需要重新學習' ? 40 : 0)
+  return examFrequencyScore(article)
+    + (article.mustMemorize ? 50 : 0)
+    + article.importance * 5
+    + (record?.status === '高風險' ? 30 : 0)
+    + (record?.status === '需要重新學習' ? 40 : 0)
 }
