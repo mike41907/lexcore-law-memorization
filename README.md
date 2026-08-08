@@ -2,7 +2,7 @@
 
 LexCore｜Precision Law Memorization System
 
-版本：`v0.14.1`
+版本：`v0.14.2`
 
 這是本地端、可離線使用的法條背誦訓練系統第一個可執行版本。法規、法條原文、作答、錯題、熟練度與備份都留在瀏覽器 IndexedDB；第一版不使用登入、雲端 AI、分析追蹤或外部 API。
 

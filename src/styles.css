@@ -1033,3 +1033,38 @@ body { background: radial-gradient(circle at 72% -12%, color-mix(in srgb, var(--
   .law-structure-desktop-hint { display: none; }
   .law-structure-mobile-hint { display: inline; }
 }
+
+/* Law-book density: keep article metadata and text visually continuous. */
+.article-list { gap: 0; border-top: 1px solid var(--line); }
+.article-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; padding: 11px 10px 9px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; }
+.article-row:hover { background: color-mix(in srgb, var(--surface-hover) 62%, transparent); }
+.article-row-head { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.article-number { flex: 0 0 auto; color: var(--info); font-size: 11px; font-weight: 700; }
+.article-number strong { margin: 0 2px; color: var(--info); font-size: 15px; }
+.article-row-tags { display: flex; align-items: center; gap: 4px; min-width: 0; margin: 0; flex-wrap: wrap; }
+.article-row-tags .frequency-chip, .article-row-tags .status-badge { min-height: 20px; padding: 0 7px; font-size: 9px; }
+.article-row-content { min-width: 0; padding: 5px 4px 0; }
+.article-row-title h3 { margin: 0 0 4px; color: var(--text-primary, var(--text)); font-size: 13px; line-height: 1.5; font-weight: 600; }
+.article-frequency-topics { margin: 0 0 4px; line-height: 1.4; }
+.article-structured-text { gap: 0; margin-top: 0; }
+.article-text-block { grid-template-columns: 24px minmax(0, 1fr); gap: 8px; padding: 3px 0; border-top: 0; }
+.article-text-block p { font-size: 13px; line-height: 1.65; }
+.article-text-label { color: var(--muted); font-size: 10px; line-height: 1.65; text-align: right; }
+.article-text-item, .article-text-subitem { grid-template-columns: minmax(0, 1fr); padding: 2px 0 2px 32px; }
+.article-text-item .article-text-label, .article-text-subitem .article-text-label { display: none; }
+.article-row-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 7px; padding-top: 6px; border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent); }
+.article-row-progress { display: flex; align-items: center; gap: 7px; width: min(180px, 32%); }
+.article-row-progress strong { flex: 0 0 auto; font-size: 11px; text-align: left; }
+.article-row-footer .row-actions { gap: 5px; }
+.article-row-footer .row-actions .button { min-height: 28px; padding: 0 9px; font-size: 10px; }
+
+@media (max-width: 720px) {
+  .article-row { padding: 10px 4px 9px; }
+  .article-row-head { gap: 5px; }
+  .article-row-content { padding: 5px 0 0; }
+  .article-text-block { grid-template-columns: 22px minmax(0, 1fr); gap: 7px; padding: 2px 0; }
+  .article-text-block p { font-size: 13px; line-height: 1.7; }
+  .article-row-footer { align-items: stretch; flex-direction: column; gap: 7px; }
+  .article-row-progress { width: 100%; max-width: 100%; }
+  .article-row-footer .row-actions { justify-content: flex-start; flex-wrap: wrap; }
+}

@@ -392,7 +392,31 @@ function LegacyArticleRow({ article, onStudy, onEdit, onTrain, onDelete }: { art
   const data = useAppData()
   const mastery = data.mastery.find((item) => item.articleId === article.id)
   const questionCount = article.questions?.filter(Boolean).length ?? 0
-  return <article className="article-row card" id={`law-article-${article.id}`} data-law-article-id={article.id}><div className="article-number">第<strong>{article.articleNumber}</strong>條</div><div className="article-row-body"><div className="article-row-title"><h3>{article.title || '未命名條文'}</h3>{article.examFrequency && <p className="article-frequency-topics">{article.examFrequency.topics.slice(0, 3).map((topic) => `#${topic.rank} ${topic.title}`).join(' · ')}</p>}<ArticleTextBlocks text={article.text} highlights={article.highlights ?? []} /></div><div className="article-row-tags">{article.examFrequency && <span className={`frequency-chip tier-${article.examFrequency.tier.toLowerCase()}`}>#{article.examFrequency.bestRank} · {article.examFrequency.tier}級 · {article.examFrequency.totalCount}次</span>}{article.mustMemorize && <span className="must-tag">必背</span>}{article.isBoss && <span className="boss-tag">魔王</span>}{article.source && <span className="official-source-badge">官方匯入</span>}{article.notes.trim() && <span className="study-tag">有筆記</span>}{questionCount > 0 && <span className="study-tag">考題 {questionCount}</span>}<StatusBadge status={mastery?.status ?? '未開始'} /></div></div><div className="article-row-progress"><strong>{Math.round(mastery?.score ?? 0)}%</strong><ProgressBar value={mastery?.score ?? 0} showValue={false} tone={(mastery?.score ?? 0) >= 80 ? 'green' : 'blue'} /></div><div className="row-actions"><Button variant="secondary" onClick={onTrain}>訓練</Button><Button variant="ghost" onClick={onStudy}>筆記／考題</Button><Button variant="ghost" onClick={onEdit}>編輯</Button><button className="icon-button danger-icon" onClick={onDelete} aria-label="封存法條">×</button></div></article>
+  return <article className="article-row card" id={`law-article-${article.id}`} data-law-article-id={article.id}>
+    <div className="article-row-head">
+      <div className="article-number">第<strong>{article.articleNumber}</strong>條</div>
+      <div className="article-row-tags">
+        {article.examFrequency && <span className={`frequency-chip tier-${article.examFrequency.tier.toLowerCase()}`}>#{article.examFrequency.bestRank} · {article.examFrequency.tier}級 · {article.examFrequency.totalCount}次</span>}
+        {article.mustMemorize && <span className="must-tag">必背</span>}
+        {article.isBoss && <span className="boss-tag">魔王</span>}
+        {article.source && <span className="official-source-badge">官方匯入</span>}
+        {article.notes.trim() && <span className="study-tag">有筆記</span>}
+        {questionCount > 0 && <span className="study-tag">考題 {questionCount}</span>}
+        <StatusBadge status={mastery?.status ?? '未開始'} />
+      </div>
+    </div>
+    <div className="article-row-content">
+      <div className="article-row-title">
+        <h3>{article.title || '未命名條文'}</h3>
+        {article.examFrequency && <p className="article-frequency-topics">{article.examFrequency.topics.slice(0, 3).map((topic) => `#${topic.rank} ${topic.title}`).join(' · ')}</p>}
+        <ArticleTextBlocks text={article.text} highlights={article.highlights ?? []} />
+      </div>
+    </div>
+    <div className="article-row-footer">
+      <div className="article-row-progress"><strong>{Math.round(mastery?.score ?? 0)}%</strong><ProgressBar value={mastery?.score ?? 0} showValue={false} tone={(mastery?.score ?? 0) >= 80 ? 'green' : 'blue'} /></div>
+      <div className="row-actions"><Button variant="secondary" onClick={onTrain}>訓練</Button><Button variant="ghost" onClick={onStudy}>筆記／考題</Button><Button variant="ghost" onClick={onEdit}>編輯</Button><button className="icon-button danger-icon" onClick={onDelete} aria-label="封存法條">×</button></div>
+    </div>
+  </article>
 }
 
 function ArticleTextBlocks({ text, highlights }: { text: string; highlights: ArticleHighlight[] }): JSX.Element {
