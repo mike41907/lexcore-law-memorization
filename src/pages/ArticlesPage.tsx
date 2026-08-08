@@ -459,7 +459,14 @@ function ArticleHighlightTools({ article }: { article: LawArticle }): JSX.Elemen
   async function removeHighlight(id: string): Promise<void> {
     await data.updateArticle({ ...article, highlights: highlights.filter((item) => item.id !== id) })
   }
-  return <div className="article-mark-tools"><span>螢光重點：{highlights.length ? highlights.map((item) => <button type="button" className="highlight-chip" key={item.id} onClick={() => void removeHighlight(item.id)} title="點擊移除">{item.text}</button>) : <small>尚未標記</small>}</span><Button variant="ghost" onClick={() => void addHighlight()}>螢光標記</Button><Button variant="ghost" onClick={() => void setMnemonic()}>設定口訣</Button></div>
+  return <details className="article-mark-tools">
+    <summary><span>重點標記</span><small>{highlights.length ? `${highlights.length} 處` : '尚未標記'}</small></summary>
+    <div className="article-mark-tool-content">
+      <span>{highlights.length ? highlights.map((item) => <button type="button" className="highlight-chip" key={item.id} onClick={() => void removeHighlight(item.id)} title="點擊移除">{item.text}</button>) : <small>先選取法條文字，再按下方的螢光標記。</small>}</span>
+      <Button variant="ghost" onClick={() => void addHighlight()}>螢光標記</Button>
+      <Button variant="ghost" onClick={() => void setMnemonic()}>設定口訣</Button>
+    </div>
+  </details>
 }
 
 function ArticleStudyForm({ article, onSave, onCancel }: { article: LawArticle; onSave: (article: LawArticle) => void; onCancel: () => void }): JSX.Element {
