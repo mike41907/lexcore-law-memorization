@@ -83,6 +83,22 @@ function countNodes(nodes: LawSystemNode[]): number {
 }
 
 function numberParts(value: string): number[] {
-  const matches = value.normalize('NFKC').match(/\d+/g)
-  return matches?.map(Number) ?? [Number.MAX_SAFE_INTEGER]
+  const matches = value.normalize('NFKC').replace(/[第條]/g, '').match(/\d+|[〇零一二三四五六七八九十百千]+/g)
+  return matches?.map((part) => /^\d+$/.test(part) ? Number(part) : chineseNumberToArabic(part)) ?? [Number.MAX_SAFE_INTEGER]
+}
+
+function chineseNumberToArabic(value: string): number {
+  const digits: Record<string, number> = { 〇: 0, 零: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 }
+  const units: Record<string, number> = { 十: 10, 百: 100, 千: 1000 }
+  let total = 0
+  let current = 0
+  for (const character of value) {
+    if (character in units) {
+      total += (current || 1) * units[character]
+      current = 0
+    } else {
+      current = digits[character] ?? current
+    }
+  }
+  return total + current
 }

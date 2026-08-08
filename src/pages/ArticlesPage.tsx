@@ -8,6 +8,8 @@ import type { ImportArticleDraft, LawArticle } from '../types'
 import type { OfficialLawDataSource, OfficialLawSummary } from '../lib/officialLaws'
 import { POLICE_SERGEANT_EXAM_PRESET, type ExamPresetBundle, type ExamPresetImportResult } from '../lib/examPreset'
 import { parseJsonImport, splitLawText } from '../lib/importer'
+import { splitArticleTextBlocks } from '../lib/articleStructure'
+import { compareArticleNumbers } from '../lib/lawSystem'
 
 type ImportKind = 'official' | 'text' | 'json' | 'external'
 type ExternalFormat = 'text' | 'json'
@@ -39,7 +41,7 @@ export function ArticlesPage(): JSX.Element {
   const presetArticleCount = data.articles.filter((article) => !article.deletedAt && presetLawIds.has(article.lawId)).length
   const articles = useMemo(() => data.articles.filter((article) => article.lawId === selectedLawId
     && !article.deletedAt
-    && (article.articleNumber.includes(search) || article.text.includes(search) || article.title.includes(search))), [data.articles, search, selectedLawId])
+    && (article.articleNumber.includes(search) || article.text.includes(search) || article.title.includes(search))).sort(compareArticleNumbers), [data.articles, search, selectedLawId])
   const importPlaceholder = importKind === 'text' || importKind === 'external'
     ? '例如：\n第1條\n法條內容……\n\n第 2 條\n下一條內容……'
     : '{"articles":[{"articleNumber":"1","text":"法條內容"}]}'
@@ -267,7 +269,12 @@ function ArticleRow({ article, onStudy, onEdit, onTrain, onDelete }: { article: 
   const data = useAppData()
   const mastery = data.mastery.find((item) => item.articleId === article.id)
   const questionCount = article.questions?.filter(Boolean).length ?? 0
-  return <article className="article-row card"><div className="article-number">第<strong>{article.articleNumber}</strong>條</div><div className="article-row-body"><div className="article-row-title"><h3>{article.title || '未命名條文'}</h3><p className="article-full-text">{article.text}</p></div><div className="article-row-tags">{article.mustMemorize && <span className="must-tag">必背</span>}{article.isBoss && <span className="boss-tag">魔王</span>}{article.source && <span className="official-source-badge">官方匯入</span>}{article.notes.trim() && <span className="study-tag">有筆記</span>}{questionCount > 0 && <span className="study-tag">考題 {questionCount}</span>}<StatusBadge status={mastery?.status ?? '未開始'} /></div></div><div className="article-row-progress"><strong>{Math.round(mastery?.score ?? 0)}%</strong><ProgressBar value={mastery?.score ?? 0} showValue={false} tone={(mastery?.score ?? 0) >= 80 ? 'green' : 'blue'} /></div><div className="row-actions"><Button variant="secondary" onClick={onTrain}>訓練</Button><Button variant="ghost" onClick={onStudy}>筆記／考題</Button><Button variant="ghost" onClick={onEdit}>編輯</Button><button className="icon-button danger-icon" onClick={onDelete} aria-label="封存法條">×</button></div></article>
+  return <article className="article-row card"><div className="article-number">第<strong>{article.articleNumber}</strong>條</div><div className="article-row-body"><div className="article-row-title"><h3>{article.title || '未命名條文'}</h3><ArticleTextBlocks text={article.text} /></div><div className="article-row-tags">{article.mustMemorize && <span className="must-tag">必背</span>}{article.isBoss && <span className="boss-tag">魔王</span>}{article.source && <span className="official-source-badge">官方匯入</span>}{article.notes.trim() && <span className="study-tag">有筆記</span>}{questionCount > 0 && <span className="study-tag">考題 {questionCount}</span>}<StatusBadge status={mastery?.status ?? '未開始'} /></div></div><div className="article-row-progress"><strong>{Math.round(mastery?.score ?? 0)}%</strong><ProgressBar value={mastery?.score ?? 0} showValue={false} tone={(mastery?.score ?? 0) >= 80 ? 'green' : 'blue'} /></div><div className="row-actions"><Button variant="secondary" onClick={onTrain}>訓練</Button><Button variant="ghost" onClick={onStudy}>筆記／考題</Button><Button variant="ghost" onClick={onEdit}>編輯</Button><button className="icon-button danger-icon" onClick={onDelete} aria-label="封存法條">×</button></div></article>
+}
+
+function ArticleTextBlocks({ text }: { text: string }): JSX.Element {
+  const blocks = splitArticleTextBlocks(text)
+  return <div className="article-structured-text" aria-label="法條項次內容">{blocks.map((block, index) => <div className={`article-text-block article-text-${block.kind}`} key={`${block.paragraphNumber}-${index}-${block.text}`}><span className="article-text-label">{block.kind === 'paragraph' ? `第 ${block.paragraphNumber} 項` : block.kind === 'item' ? `第 ${block.paragraphNumber} 項／款` : `第 ${block.paragraphNumber} 項／目`}</span><p>{block.text}</p></div>)}</div>
 }
 
 function ArticleStudyForm({ article, onSave, onCancel }: { article: LawArticle; onSave: (article: LawArticle) => void; onCancel: () => void }): JSX.Element {

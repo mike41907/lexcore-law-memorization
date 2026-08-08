@@ -9,6 +9,10 @@ describe('law system map', () => {
     expect([article('10'), article('2-1'), article('2'), article('1')].sort(compareArticleNumbers).map((item) => item.articleNumber)).toEqual(['1', '2', '2-1', '10'])
   })
 
+  it('sorts Chinese article numbers naturally', () => {
+    expect([article('十'), article('二'), article('二之一'), article('一')].sort(compareArticleNumbers).map((item) => item.articleNumber)).toEqual(['一', '二', '二之一', '十'])
+  })
+
   it('collapses repeated headings without inventing missing parents', () => {
     const map = buildLawSystemMap([article('1', '第 一 章 總則'), article('2', '第 一 章 總則'), article('3', '第 一 節 通則'), article('4', '第 一 節 通則'), article('5', '第 二 章 執行')])
     expect(map.roots).toHaveLength(3)
