@@ -222,7 +222,11 @@ h3 { margin-bottom: 5px; font-size: 14px; }
 .law-note { padding: 9px 10px; margin: 0 0 15px; border-left: 2px solid var(--gold); color: var(--muted); background: rgba(213,169,89,.05); font-size: 10px; line-height: 1.5; }
 
 .import-workbench, .preview-section { padding: 22px; }
+.import-workbench.is-collapsed { padding: 0; }
 .workbench-head { align-items: center; margin-bottom: 17px; }
+.is-collapsed .workbench-head { padding: 15px 18px; margin-bottom: 0; }
+.workbench-head-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; min-width: 0; }
+.workbench-body { display: grid; gap: 16px; }
 .law-select-wrap label, .form-stack label, .filter-bar label, .training-article-select { display: grid; gap: 7px; color: var(--muted); font-size: 11px; }
 input:not([type="checkbox"]):not([type="radio"]), select, textarea { width: 100%; color: var(--text); border: 1px solid var(--line-strong); border-radius: 9px; outline: none; background: rgba(4, 8, 18, .42); }
 input:not([type="checkbox"]):not([type="radio"]), select { min-height: 40px; padding: 0 11px; }
@@ -340,8 +344,9 @@ input:focus, select:focus, textarea:focus { border-color: rgba(110,157,255,.75);
 .article-number strong { margin: 0 3px; color: var(--gold-soft); font-size: 20px; }
 .article-row-body { min-width: 0; }
 .article-row-title { min-width: 0; }
-.article-row-title h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.article-row-title h3 { overflow-wrap: anywhere; }
 .article-preview { display: block; overflow: hidden; color: var(--muted); font-size: 11px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
+.article-full-text { margin: 0; color: var(--text); font-size: 13px; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; }
 .article-row-tags { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
 .must-tag { color: var(--gold-soft); background: rgba(213,169,89,.12); }
 .boss-tag { color: var(--red); background: rgba(239,127,142,.1); }
@@ -614,6 +619,8 @@ input:focus, select:focus, textarea:focus { border-color: rgba(110,157,255,.75);
   .form-grid, .preview-inline, .official-article-option, .official-source-strip { min-width: 0; }
   .official-article-copy, .official-article-copy > span, .article-row-body, .article-row-title, .article-preview { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
   .article-preview { white-space: normal; }
+  .workbench-head-actions { width: 100%; justify-content: space-between; }
+  .workbench-head-actions .button { flex: 0 1 auto; }
   .modal-card { width: 100%; max-width: 100%; padding: 15px; }
   .modal-actions { align-items: stretch; }
   .modal-actions .button { flex: 1 1 120px; }
