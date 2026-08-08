@@ -304,7 +304,7 @@ function ArticleRow({ article, onStudy, onEdit, onTrain, onDelete }: { article: 
 
 function ArticleTextBlocks({ text }: { text: string }): JSX.Element {
   const blocks = splitArticleTextBlocks(text)
-  return <div className="article-structured-text" aria-label="法條項次內容">{blocks.map((block, index) => <div className={`article-text-block article-text-${block.kind}`} key={`${block.paragraphNumber}-${index}-${block.text}`}><span className="article-text-label">{block.kind === 'paragraph' ? `第 ${block.paragraphNumber} 項` : block.kind === 'item' ? `第 ${block.paragraphNumber} 項／款` : `第 ${block.paragraphNumber} 項／目`}</span><p>{block.text}</p></div>)}</div>
+  return <div className="article-structured-text" aria-label="法條項次內容">{blocks.map((block, index) => <div className={`article-text-block article-text-${block.kind}`} key={`${block.paragraphNumber}-${index}-${block.text}`}>{block.kind === 'paragraph' && <span className="article-text-label">第 {block.paragraphNumber} 項</span>}<p>{block.text}</p></div>)}</div>
 }
 
 function ArticleStudyForm({ article, onSave, onCancel }: { article: LawArticle; onSave: (article: LawArticle) => void; onCancel: () => void }): JSX.Element {
