@@ -1,6 +1,7 @@
 export type ISODate = string
 export type ExamSubject = 'criminal-law' | 'constitution' | 'police-law' | 'police-duty' | 'criminal-procedure' | 'unclassified'
 export type LawType = 'core' | 'sub-law' | 'implementing-rules' | 'measure' | 'regulation' | 'order' | 'other'
+export type ThemeMode = 'system' | 'light' | 'dark'
 export type TrainingMode = 'reading' | 'comprehension' | 'numbers' | 'keywords' | 'cloze' | 'ordering' | 'prompt' | 'dictation' | 'surprise'
 export type ArticleStatus = '未開始' | '初次接觸' | '學習中' | '尚未穩定' | '接近熟練' | '已熟練' | '已精通' | '高風險' | '需要重新學習'
 export type TaskType = 'new' | 'due' | 'yesterday-error' | 'seven-day' | 'high-risk' | 'surprise' | 'mastery-check'
@@ -35,6 +36,7 @@ export interface AppSettings {
   enableSurprise: boolean
   surpriseQuestions: number
   fontScale: number
+  themeMode: ThemeMode
   soundEnabled: boolean
   animationsEnabled: boolean
   compare: CompareOptions
@@ -344,6 +346,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   enableSurprise: false,
   surpriseQuestions: 3,
   fontScale: 1,
+  themeMode: 'system',
   soundEnabled: false,
   animationsEnabled: true,
   compare: DEFAULT_COMPARE_OPTIONS,

@@ -3,7 +3,7 @@ import { calculateNextReview } from './scheduler'
 import type { AnswerRecord, AppSettings, MasteryRecord } from '../types'
 
 const settings: AppSettings = {
-  id: 'settings', examDate: '2027-03-01', dailyStudyMinutes: 30, dailyNewArticles: 3, dailyReviewLimit: 15, includeMandatoryFirst: true, enableSurprise: false, surpriseQuestions: 3, fontScale: 1, soundEnabled: false, animationsEnabled: true,
+  id: 'settings', examDate: '2027-03-01', dailyStudyMinutes: 30, dailyNewArticles: 3, dailyReviewLimit: 15, includeMandatoryFirst: true, enableSurprise: false, surpriseQuestions: 3, fontScale: 1, themeMode: 'system', soundEnabled: false, animationsEnabled: true,
   compare: { ignorePunctuation: true, ignoreWhitespace: true, ignoreLineBreaks: true, ignoreFullHalf: true, ignoreArabicChineseNumbers: false, strictLegalTerms: true, strictStructure: true },
   masteryWeights: { reading: .05, cloze: .15, ordering: .15, prompt: .2, dictation: .35, stability: .1 }, reviewIntervals: [.007, 1, 3, 7, 14, 30, 60, 90], highWeightKeywords: ['得', '應'], createdAt: '', updatedAt: '',
 }

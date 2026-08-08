@@ -60,15 +60,22 @@ export function LawStructureMap({ lawName, map, mastery, activeNodeId, onSelectA
       <div><p className="eyebrow">STRUCTURE / 法規體系</p><h2>{lawName}架構圖</h2><p className="muted-text">架構只取自已匯入法條的官方標題；點選節點可跳到對應全文。</p></div>
       <div className="law-structure-actions"><Button variant="ghost" onClick={() => setScale((value) => Math.min(1.8, value + .1))}>＋</Button><span className="structure-zoom">{Math.round(scale * 100)}%</span><Button variant="ghost" onClick={() => setScale((value) => Math.max(.7, value - .1))}>－</Button><Button variant="secondary" onClick={fitView}>適合檢視</Button><Button variant="ghost" onClick={() => setExpanded(new Set(allNodes.map((node) => node.id)))}>全部展開</Button><Button variant="ghost" onClick={() => setExpanded(new Set())}>全部收合</Button></div>
     </div>
-    <div className="law-structure-viewport" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={stopDrag} onPointerCancel={stopDrag} onWheel={(event) => { event.preventDefault(); setScale((value) => Math.max(.7, Math.min(1.8, value + (event.deltaY < 0 ? .05 : -.05)))) }}>
-      <div className="law-structure-canvas" style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }}>
-        <div className="law-structure-tree" role="tree" aria-label={`${lawName}法規體系`}>
-          {map.roots.map((node) => <StructureNode key={node.id} node={node} expanded={expanded} activeNodeId={activeNodeId} masteryMap={masteryMap} onToggle={toggle} onSelectArticle={onSelectArticle} />)}
+    <div className="law-structure-layout">
+      <aside className="law-structure-outline" aria-label="法律樹快速導覽"><div className="law-structure-outline-title">法律樹</div>{map.roots.map((node) => <OutlineNode key={node.id} node={node} onSelectArticle={onSelectArticle} />)}</aside>
+      <div className="law-structure-viewport" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={stopDrag} onPointerCancel={stopDrag} onWheel={(event) => { event.preventDefault(); setScale((value) => Math.max(.7, Math.min(1.8, value + (event.deltaY < 0 ? .05 : -.05)))) }}>
+        <div className="law-structure-canvas" style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }}>
+          <div className="law-structure-tree" role="tree" aria-label={`${lawName}法規體系`}>
+            {map.roots.map((node) => <StructureNode key={node.id} node={node} expanded={expanded} activeNodeId={activeNodeId} masteryMap={masteryMap} onToggle={toggle} onSelectArticle={onSelectArticle} />)}
+          </div>
         </div>
       </div>
     </div>
     <p className="law-structure-hint">拖曳空白處平移 · 滾輪縮放 · 目前 {map.articleCount} 條法條、{map.nodeCount} 個架構節點</p>
   </section>
+}
+
+function OutlineNode({ node, onSelectArticle }: { node: LawSystemNode; onSelectArticle: (articleId: string) => void }): JSX.Element {
+  return <div className="law-outline-node"><button type="button" onClick={() => onSelectArticle(node.anchorArticleId)}><span>{node.level}</span>{node.label.replace(/^第\s*/, '')}</button>{node.children.length > 0 && <div>{node.children.map((child) => <OutlineNode key={child.id} node={child} onSelectArticle={onSelectArticle} />)}</div>}</div>
 }
 
 function StructureNode({ node, expanded, activeNodeId, masteryMap, onToggle, onSelectArticle }: { node: LawSystemNode; expanded: Set<string>; activeNodeId?: string; masteryMap: Map<string, number>; onToggle: (id: string) => void; onSelectArticle: (id: string) => void }): JSX.Element {

@@ -3,27 +3,38 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAppData } from '../context/AppContext'
 
 const navigation = [
-  { to: '/dashboard', label: '儀表板', icon: '◈' },
-  { to: '/today', label: '今日任務', icon: '▣' },
+  { to: '/dashboard', label: '今日任務', icon: '⌂' },
   { to: '/articles', label: '法條瀏覽', icon: '≡' },
-  { to: '/training', label: '訓練模式', icon: '✦' },
+  { to: '/training', label: '模擬測驗', icon: '✦' },
   { to: '/errors', label: '錯題中心', icon: '△' },
-  { to: '/analytics', label: '熟練度分析', icon: '↗' },
-  { to: '/records', label: '學習紀錄', icon: '◷' },
-  { to: '/achievements', label: '成就系統', icon: '♜' },
-  { to: '/confusions', label: '易混淆法條', icon: '⇄' },
+  { to: '/analytics', label: '學習分析', icon: '↗' },
+  { to: '/achievements', label: '成就', icon: '♜' },
 ]
 
 const utilityNavigation = [
-  { to: '/settings', label: '系統設定', icon: '⚙' },
-  { to: '/backup', label: '備份與還原', icon: '⤓' },
+  { to: '/settings', label: '設定', icon: '⚙' },
 ]
 
 export function AppShell(): JSX.Element {
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
-  const { progress, error } = useAppData()
+  const { progress, error, settings } = useAppData()
   useEffect(() => setMobileOpen(false), [location.pathname])
+  useEffect(() => {
+    const root = document.documentElement
+    const applyTheme = () => {
+      const resolved = settings.themeMode === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+        : settings.themeMode
+      root.dataset.theme = resolved
+      root.dataset.themeChoice = settings.themeMode
+    }
+    applyTheme()
+    if (settings.themeMode !== 'system') return undefined
+    const media = window.matchMedia('(prefers-color-scheme: light)')
+    media.addEventListener('change', applyTheme)
+    return () => media.removeEventListener('change', applyTheme)
+  }, [settings.themeMode])
 
   return (
     <div className="app-shell">
@@ -32,7 +43,7 @@ export function AppShell(): JSX.Element {
           <div className="brand-mark">法</div>
           <div>
             <p className="brand-name">法典</p>
-            <p className="brand-subtitle">LEXCORE / 0.12.0</p>
+            <p className="brand-subtitle">LEXCORE / 0.13.0</p>
           </div>
         </div>
         <div className="profile-strip">

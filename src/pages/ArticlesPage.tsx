@@ -39,6 +39,7 @@ export function ArticlesPage(): JSX.Element {
   const [librarySearch, setLibrarySearch] = useState('')
   const [sortMode, setSortMode] = useState<ArticleSortMode>('frequency')
   const [visibleCount, setVisibleCount] = useState(40)
+  const [collapsedChapters, setCollapsedChapters] = useState<Set<string>>(new Set())
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [editing, setEditing] = useState<LawArticle | null>(null)
@@ -59,8 +60,10 @@ export function ArticlesPage(): JSX.Element {
     const laws = activeLaws.filter((law) => (law.examSubject ?? classifyExamSubject(law)) === subject.id)
     const articles = data.articles.filter((article) => !article.deletedAt && laws.some((law) => law.id === article.lawId))
     const scores = articles.map((article) => data.mastery.find((item) => item.articleId === article.id)?.score ?? 0)
-    return [subject.id, { laws, articles, average: scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0, learned: scores.filter((score) => score > 0).length, mastered: scores.filter((score) => score >= 90).length }] as const
-  })), [activeLaws, data.articles, data.mastery])
+    const masteryMap = new Map(data.mastery.map((item) => [item.articleId, item]))
+    const dueIds = new Set(data.reviews.filter((review) => new Date(review.nextReviewAt).getTime() <= Date.now()).map((review) => review.articleId))
+    return [subject.id, { laws, articles, average: scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0, learned: scores.filter((score) => score > 0).length, mastered: scores.filter((score) => score >= 90).length, due: articles.filter((article) => dueIds.has(article.id)).length, highRisk: articles.filter((article) => ['高風險', '需要重新學習'].includes(masteryMap.get(article.id)?.status ?? '')).length }] as const
+  })), [activeLaws, data.articles, data.mastery, data.reviews])
   const globalResults = useMemo(() => {
     const query = librarySearch.trim().toLocaleLowerCase('zh-Hant')
     if (!query) return []
@@ -76,6 +79,19 @@ export function ArticlesPage(): JSX.Element {
       ? (left, right) => compareExamFrequency(left, right) || compareArticleNumbers(left, right)
       : compareArticleNumbers), [data.articles, isCriminalProcedure, search, selectedLawId, sortMode])
   const visibleArticles = articles.slice(0, visibleCount)
+  const articleChapterGroups = useMemo(() => {
+    const chapterNodes = flattenSystemNodes(systemMap.roots).filter((node) => node.level === '章')
+    const groups = new Map<string, { id: string; label: string; articles: LawArticle[] }>()
+    for (const article of visibleArticles) {
+      const chapter = chapterNodes.find((node) => node.articleIds.includes(article.id))
+      const id = chapter?.id ?? 'article-guide'
+      const label = chapter?.label ?? '條號導覽（官方未提供章節）'
+      const group = groups.get(id) ?? { id, label, articles: [] }
+      group.articles.push(article)
+      groups.set(id, group)
+    }
+    return [...groups.values()]
+  }, [systemMap.roots, visibleArticles])
   const importPlaceholder = importKind === 'text' || importKind === 'external'
     ? '例如：\n第1條\n法條內容……\n\n第 2 條\n下一條內容……'
     : '{"articles":[{"articleNumber":"1","text":"法條內容"}]}'
@@ -285,7 +301,7 @@ export function ArticlesPage(): JSX.Element {
         {globalResults.length > 0 && <div className="library-search-results">{globalResults.map((article) => { const law = activeLaws.find((item) => item.id === article.lawId); return <button type="button" key={article.id} onClick={() => { if (law) { setSelectedSubject(law.examSubject ?? classifyExamSubject(law)); changeLaw(law.id) } }}><strong>{law?.shortName ?? law?.name} · 第 {article.articleNumber} 條</strong><span>{article.title || article.text.slice(0, 92)}</span></button> })}</div>}
       </section>
       <section className="exam-subject-grid" aria-label="五大考科">
-        {EXAM_SUBJECTS.map((subject) => { const stats = subjectStats.get(subject.id)!; return <button type="button" className={`exam-subject-card card ${selectedSubject === subject.id ? 'is-selected' : ''}`} key={subject.id} onClick={() => chooseSubject(subject.id)}><span className="exam-subject-symbol">{subject.shortLabel.slice(0, 1)}</span><span className="exam-subject-copy"><small>EXAM SUBJECT</small><strong>{subject.label}</strong><em>{subject.description}</em></span><span className="exam-subject-stats"><b>{stats.laws.length} 部法規</b><span>{stats.articles.length} 條 · 已學 {stats.learned} · 已精通 {stats.mastered}</span><ProgressBar value={stats.average} showValue={false} tone={stats.average >= 80 ? 'green' : 'blue'} /><small>整體熟練度 {Math.round(stats.average)}%</small></span></button> })}
+        {EXAM_SUBJECTS.map((subject) => { const stats = subjectStats.get(subject.id)!; return <button type="button" className={`exam-subject-card card ${selectedSubject === subject.id ? 'is-selected' : ''}`} key={subject.id} onClick={() => chooseSubject(subject.id)}><span className="exam-subject-symbol">{subject.shortLabel.slice(0, 1)}</span><span className="exam-subject-copy"><small>EXAM SUBJECT</small><strong>{subject.label}</strong><em>{subject.description}</em></span><span className="exam-subject-stats"><b>{stats.laws.length} 部法規</b><span>{stats.articles.length} 條 · 已學 {stats.learned} · 已精通 {stats.mastered}</span><span>待複習 {stats.due} · 高風險 {stats.highRisk}</span><ProgressBar value={stats.average} showValue={false} tone={stats.average >= 90 ? 'green' : stats.average >= 70 ? 'gold' : 'blue'} /><small>整體熟練度 {Math.round(stats.average)}% · {stats.articles.length ? Math.round((stats.learned / stats.articles.length) * 100) : 0}% 已開始</small></span></button> })}
       </section>
       {selectedSubject && <section className="law-chooser card"><div className="card-heading"><div><p className="eyebrow">{EXAM_SUBJECT_LABELS[selectedSubject]} / LAW COLLECTION</p><h2>選擇要閱讀的法規</h2><p className="muted-text">核心法規、子法與施行規則分開呈現；選取後會直接進入全文與體系圖。</p></div><Button variant="ghost" onClick={() => { setSelectedSubject(undefined); setSearchParams({}) }}>返回五大考科</Button></div>{selectedSubjectLaws.length ? <div className="law-chooser-grid">{selectedSubjectLaws.map((law) => { const lawArticleCount = data.articles.filter((article) => article.lawId === law.id && !article.deletedAt).length; const average = lawArticleCount ? data.articles.filter((article) => article.lawId === law.id && !article.deletedAt).reduce((sum, article) => sum + (data.mastery.find((item) => item.articleId === article.id)?.score ?? 0), 0) / lawArticleCount : 0; return <button type="button" className="law-chooser-card" key={law.id} onClick={() => changeLaw(law.id)}><span><strong>{law.name}</strong><small>{LAW_TYPE_LABELS[law.lawType ?? classifyLawType(law)]} · {lawArticleCount} 條法條</small></span><span><b>{Math.round(average)}%</b><em>熟練度</em></span></button> })}</div> : <EmptyState icon="⌘" title="這個考科尚未有法規" description="可在下方匯入工具從全國法規資料庫挑選，或匯入外部法規。" />}</section>}
     </>}
@@ -360,7 +376,7 @@ export function ArticlesPage(): JSX.Element {
 
     {selectedLaw ? <section className="article-browser">
       <div className="section-toolbar"><div><p className="eyebrow">BROWSER / {selectedLaw.shortName}</p><h2>已儲存法條 <span className="count-chip">{articles.length}</span></h2></div><div className="article-toolbar-actions">{isCriminalProcedure && <div className="sort-segment" aria-label="法條排序方式"><button type="button" className={sortMode === 'frequency' ? 'active' : ''} onClick={() => { setSortMode('frequency'); setVisibleCount(40) }}>考頻優先</button><button type="button" className={sortMode === 'number' ? 'active' : ''} onClick={() => { setSortMode('number'); setVisibleCount(40) }}>條號順序</button></div>}<label className="search-box"><span>⌕</span><input value={search} onChange={(event) => { setSearch(event.target.value); setVisibleCount(40) }} placeholder="搜尋條號、標題或文字" /></label></div></div>
-      {articles.length ? <><div className="article-list">{visibleArticles.map((article) => <ArticleRow key={article.id} article={article} onStudy={() => setStudyEditing(article)} onEdit={() => setEditing(article)} onTrain={() => navigate(`/training/${article.id}`)} onDelete={() => void removeArticle(article)} />)}</div>{visibleCount < articles.length && <div className="article-load-more"><span>目前顯示 {visibleArticles.length}／{articles.length} 條</span><Button variant="secondary" onClick={() => setVisibleCount((count) => count + 40)}>再顯示 40 條</Button></div>}</> : <EmptyState icon="≡" title="這部法規還沒有法條" description="從官方資料庫勾選條文，或貼上文字並產生預覽。" />}
+      {articles.length ? <><div className="article-list article-chapter-list">{articleChapterGroups.map((group) => { const open = !collapsedChapters.has(group.id); return <section className={`article-chapter-group ${open ? 'is-open' : 'is-collapsed'}`} key={group.id}><button type="button" className="article-chapter-toggle" aria-expanded={open} onClick={() => setCollapsedChapters((current) => { const next = new Set(current); if (open) next.add(group.id); else next.delete(group.id); return next })}><span>{open ? '▼' : '▶'}</span><strong>{group.label}</strong><small>{group.articles.length} 條顯示中</small></button>{open && group.articles.map((article) => <ArticleRow key={article.id} article={article} onStudy={() => setStudyEditing(article)} onEdit={() => setEditing(article)} onTrain={() => navigate(`/training/${article.id}`)} onDelete={() => void removeArticle(article)} />)}</section> })}</div>{visibleCount < articles.length && <div className="article-load-more"><span>目前顯示 {visibleArticles.length}／{articles.length} 條</span><Button variant="secondary" onClick={() => setVisibleCount((count) => count + 40)}>再顯示 40 條</Button></div>}</> : <EmptyState icon="≡" title="這部法規還沒有法條" description="從官方資料庫勾選條文，或貼上文字並產生預覽。" />}
     </section> : <EmptyState icon="⌕" title="先搜尋並選擇法條" description="上方可直接搜尋全國法規資料庫；選好條文後，系統會自動建立對應的本機法規。" />}
 
     {editing && <Modal title={`編輯第 ${editing.articleNumber} 條`} onClose={() => setEditing(null)}><ArticleEditForm article={editing} onCancel={() => setEditing(null)} onSave={(article) => void saveArticle(article)} /></Modal>}
