@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react'
 import type {
   Achievement,
   AnswerRecord,
@@ -20,7 +20,7 @@ import type {
 } from '../types'
 import { clearStore, getAll, put, putLawImportBatch, putMany, readSnapshot, remove, STORE_NAMES, type DatabaseSnapshot } from '../lib/db'
 import { createBackup, parseBackup } from '../lib/backup'
-import { presetScopeNote, type ExamPresetBundle, type ExamPresetImportResult } from '../lib/examPreset'
+import { loadPoliceSergeantExamPreset, presetScopeNote, type ExamPresetBundle, type ExamPresetImportResult } from '../lib/examPreset'
 import { normalizeArticleNumber, splitIntoSections } from '../lib/importer'
 import { applyReadToMastery, createInitialMastery, updateMastery } from '../lib/mastery'
 import { calculateNextReview } from '../lib/scheduler'
@@ -97,6 +97,7 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
   const [state, setState] = useState<AppState | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const autoSeedAttempted = useRef(false)
 
   const loadState = useCallback(async (): Promise<void> => {
     setLoading(true)
@@ -324,6 +325,16 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
       dataUpdatedAt: bundle.officialSource.dataUpdatedAt,
     }
   }, [loadState, state])
+
+  useEffect(() => {
+    if (autoSeedAttempted.current || loading || !state || state.laws.some((law) => !law.deletedAt)) return
+    autoSeedAttempted.current = true
+    setLoading(true)
+    void loadPoliceSergeantExamPreset()
+      .then((bundle) => importExamPreset(bundle))
+      .catch((caught) => setError(toErrorMessage(caught)))
+      .finally(() => setLoading(false))
+  }, [importExamPreset, loading, state])
 
   const updateArticle = useCallback(async (article: LawArticle): Promise<void> => {
     if (!article.text.trim()) throw new Error('法條全文不可空白。')

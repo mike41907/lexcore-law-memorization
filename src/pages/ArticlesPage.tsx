@@ -10,7 +10,8 @@ import { POLICE_SERGEANT_EXAM_PRESET, type ExamPresetBundle, type ExamPresetImpo
 import { parseJsonImport, splitLawText } from '../lib/importer'
 import { formatDateTimeTW } from '../lib/utils'
 
-type ImportKind = 'official' | 'text' | 'json'
+type ImportKind = 'official' | 'text' | 'json' | 'external'
+type ExternalFormat = 'text' | 'json'
 
 export function ArticlesPage(): JSX.Element {
   const data = useAppData()
@@ -20,6 +21,10 @@ export function ArticlesPage(): JSX.Element {
   const [selectedLawId, setSelectedLawId] = useState(searchParams.get('law') ?? activeLaws[0]?.id ?? '')
   const [input, setInput] = useState('')
   const [importKind, setImportKind] = useState<ImportKind>('official')
+  const [externalFormat, setExternalFormat] = useState<ExternalFormat>('text')
+  const [externalName, setExternalName] = useState('')
+  const [externalShortName, setExternalShortName] = useState('')
+  const [externalSourceUrl, setExternalSourceUrl] = useState('')
   const [preview, setPreview] = useState<ImportArticleDraft[]>([])
   const [search, setSearch] = useState('')
   const [message, setMessage] = useState('')
@@ -35,7 +40,7 @@ export function ArticlesPage(): JSX.Element {
   const articles = useMemo(() => data.articles.filter((article) => article.lawId === selectedLawId
     && !article.deletedAt
     && (article.articleNumber.includes(search) || article.text.includes(search) || article.title.includes(search))), [data.articles, search, selectedLawId])
-  const importPlaceholder = importKind === 'text'
+  const importPlaceholder = importKind === 'text' || importKind === 'external'
     ? '例如：\n第1條\n法條內容……\n\n第 2 條\n下一條內容……'
     : '{"articles":[{"articleNumber":"1","text":"法條內容"}]}'
   const officialPreview = preview.some((draft) => draft.source?.type === 'moj-law')
@@ -66,12 +71,41 @@ export function ArticlesPage(): JSX.Element {
     try {
       const text = await file.text()
       setInput(text)
-      setImportKind(file.name.toLowerCase().endsWith('.json') ? 'json' : 'text')
+      if (importKind === 'external') setExternalFormat(file.name.toLowerCase().endsWith('.json') ? 'json' : 'text')
+      else setImportKind(file.name.toLowerCase().endsWith('.json') ? 'json' : 'text')
       setMessage(`已讀取 ${file.name}，按「產生預覽」檢查拆分結果。`)
     } catch {
       setError('檔案讀取失敗，請確認檔案仍可存取。')
     }
     event.target.value = ''
+  }
+
+  async function generateExternalPreview(): Promise<void> {
+    setError('')
+    setMessage('')
+    if (!externalName.trim()) { setError('請先填寫外部警察法規命令名稱。'); return }
+    if (!input.trim()) { setError('請貼上法條文字或選擇 TXT／JSON 檔案。'); return }
+    try {
+      const drafts = externalFormat === 'json' ? parseJsonImport(input) : splitLawText(input)
+      if (!drafts.length) throw new Error('沒有拆出任何法條，請確認內容包含「第○條」格式。')
+      let target = activeLaws.find((law) => normalizeName(law.name) === normalizeName(externalName))
+      if (!target) {
+        target = await data.createLaw({
+          name: externalName.trim(),
+          shortName: externalShortName.trim() || externalName.trim(),
+          category: '警察法規',
+          importance: 3,
+          examScope: true,
+          notes: `外部警察法規命令匯入${externalSourceUrl.trim() ? `；來源：${externalSourceUrl.trim()}` : ''}。內容由使用者提供，請自行核對現行版本。`,
+        })
+      }
+      changeLaw(target.id)
+      setPreview(drafts)
+      setMessage(`已建立「${target.name}」並放入 ${drafts.length} 條外部法規預覽；確認後才會寫入本機。`)
+      window.setTimeout(() => document.getElementById('import-preview')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '外部警察法規命令解析失敗。')
+    }
   }
 
   async function prepareOfficialImport(law: OfficialLawSummary, source: OfficialLawDataSource, drafts: ImportArticleDraft[]): Promise<void> {
@@ -142,7 +176,7 @@ export function ArticlesPage(): JSX.Element {
     <PageHeader
       eyebrow="LIBRARY / LAW ARTICLES"
       title="法條瀏覽"
-      description="可從全國法規資料庫挑選條文，或匯入 TXT、JSON；確認預覽後才寫入本機 IndexedDB。"
+      description="首次使用會自動建立目前四科法條核心；之後可從全國法規資料庫挑選，或匯入外部警察法規命令。"
       actions={selectedLawId && <Button variant="secondary" onClick={() => setPreview((items) => [...items, emptyDraft()])}>＋ 手動新增</Button>}
     />
     {error && <Notice tone="warning">{error}</Notice>}
@@ -157,9 +191,22 @@ export function ArticlesPage(): JSX.Element {
         <button type="button" role="tab" aria-selected={importKind === 'official'} className={importKind === 'official' ? 'selected' : ''} onClick={() => setImportKind('official')}>全國法規資料庫</button>
         <button type="button" role="tab" aria-selected={importKind === 'text'} className={importKind === 'text' ? 'selected' : ''} onClick={() => setImportKind('text')}>貼上純文字 / TXT</button>
         <button type="button" role="tab" aria-selected={importKind === 'json'} className={importKind === 'json' ? 'selected' : ''} onClick={() => setImportKind('json')}>JSON</button>
+        <button type="button" role="tab" aria-selected={importKind === 'external'} className={importKind === 'external' ? 'selected' : ''} onClick={() => setImportKind('external')}>外部警察法規命令</button>
       </div>
       {importKind === 'official'
         ? <div className="official-import-stack"><ExamPresetImporter existingLawCount={presetLaws.length} existingArticleCount={presetArticleCount} onImport={importExamPreset} /><OfficialLawImporter localLaws={activeLaws} localArticles={data.articles} onPrepare={prepareOfficialImport} /></div>
+        : importKind === 'external'
+          ? <div className="manual-import-panel external-command-panel">
+            <div className="form-grid">
+              <label>法規命令名稱<input value={externalName} onChange={(event) => setExternalName(event.target.value)} placeholder="例如：警察機關處理○○案件作業規定" /></label>
+              <label>簡稱（可留白）<input value={externalShortName} onChange={(event) => setExternalShortName(event.target.value)} placeholder="例如：○○作業規定" /></label>
+              <label>來源網址（可留白）<input value={externalSourceUrl} onChange={(event) => setExternalSourceUrl(event.target.value)} placeholder="https://…" /></label>
+              <label>資料格式<select value={externalFormat} onChange={(event) => setExternalFormat(event.target.value as ExternalFormat)}><option value="text">純文字 / TXT</option><option value="json">JSON</option></select></label>
+            </div>
+            <textarea className="import-textarea" value={input} onChange={(event) => setInput(event.target.value)} placeholder={externalFormat === 'text' ? '例如：\n第1條\n法規命令內容……\n\n第2條\n下一條內容……' : '{"articles":[{"articleNumber":"1","text":"法規命令內容"}]}' } />
+            <div className="import-actions"><input ref={fileInput} type="file" accept=".txt,.json,text/plain,application/json" hidden onChange={(event) => void readFile(event)} /><Button variant="secondary" onClick={() => fileInput.current?.click()}>選擇 TXT／JSON</Button><Button onClick={() => void generateExternalPreview()}>建立外部法規預覽</Button></div>
+            <Notice tone="info">適合匯入警察機關自訂作業規定、函釋整理或其他未收錄於法務部資料集的法規命令；確認預覽後才會寫入本機 IndexedDB。</Notice>
+          </div>
         : activeLaws.length
           ? <div className="manual-import-panel"><textarea className="import-textarea" value={input} onChange={(event) => setInput(event.target.value)} placeholder={importPlaceholder} /><div className="import-actions"><input ref={fileInput} type="file" accept=".txt,.json,text/plain,application/json" hidden onChange={(event) => void readFile(event)} /><Button variant="secondary" onClick={() => fileInput.current?.click()}>選擇檔案</Button><Button onClick={generatePreview}>產生拆分預覽</Button></div></div>
           : <Notice tone="warning"><div>TXT 與 JSON 必須先指定本機法規；你也可以切回「全國法規資料庫」，系統會在選取條文時自動建立法規。</div><Button variant="ghost" onClick={() => navigate('/laws')}>前往法規管理</Button></Notice>}
