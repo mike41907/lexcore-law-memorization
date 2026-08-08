@@ -29,6 +29,7 @@ import { createDemoData } from '../lib/sampleData'
 import { compareText } from '../lib/compare'
 import { DEFAULT_PROGRESS, DEFAULT_SETTINGS, ACHIEVEMENT_DEFINITIONS } from '../types'
 import { dateDiffInDays, makeId, normalizeSettings, nowIso, todayKey } from '../lib/utils'
+import { extractStoppedConstitutionArticleNumbers, findStoppedConstitutionArticles } from '../lib/constitution'
 
 export interface AppState {
   settings: AppSettings
@@ -101,16 +102,26 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
     setLoading(true)
     try {
       const snapshot = await readSnapshot()
+      const stoppedConstitutionArticles = findStoppedConstitutionArticles(snapshot.laws, snapshot.articles)
+      const stoppedIds = new Set(stoppedConstitutionArticles.map((article) => article.id))
+      const retirementTimestamp = nowIso()
+      const articles = stoppedConstitutionArticles.length
+        ? snapshot.articles.map((article) => stoppedIds.has(article.id) ? { ...article, deletedAt: retirementTimestamp, updatedAt: retirementTimestamp, notes: `${article.notes ? `${article.notes}\n` : ''}依憲法增修條文停止適用，已自動封存。` } : article)
+        : snapshot.articles
+      if (stoppedConstitutionArticles.length) {
+        await putMany(STORE_NAMES.articles, articles.filter((article) => stoppedIds.has(article.id)))
+        await Promise.all(snapshot.tasks.filter((task) => stoppedIds.has(task.articleId)).map((task) => remove(STORE_NAMES.tasks, task.id)))
+      }
       const timestamp = nowIso()
       const settings = normalizeSettings(snapshot.settings[0] ? { ...DEFAULT_SETTINGS, ...snapshot.settings[0] } : { ...DEFAULT_SETTINGS, createdAt: timestamp, updatedAt: timestamp })
       const progress = snapshot.progress[0] ?? { ...DEFAULT_PROGRESS }
       if (!snapshot.settings[0]) await put(STORE_NAMES.settings, settings)
       if (!snapshot.progress[0]) await put(STORE_NAMES.progress, progress)
 
-      let tasks = snapshot.tasks
+      let tasks = snapshot.tasks.filter((task) => !stoppedIds.has(task.articleId))
       const date = todayKey()
-      if (snapshot.articles.some((article) => !article.deletedAt)) {
-        const generated = generateDailyTasks(snapshot.articles, snapshot.reviews, snapshot.mastery, settings, date)
+      if (articles.some((article) => !article.deletedAt)) {
+        const generated = generateDailyTasks(articles, snapshot.reviews, snapshot.mastery, settings, date)
         const existingTodayKeys = new Set(tasks.filter((task) => task.date === date).map((task) => `${task.articleId}:${task.type}`))
         const additions = generated.filter((task) => !existingTodayKeys.has(`${task.articleId}:${task.type}`))
         if (additions.length) {
@@ -121,7 +132,7 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
       setState({
         settings,
         laws: snapshot.laws,
-        articles: snapshot.articles,
+        articles,
         sections: snapshot.sections,
         sessions: snapshot.sessions,
         answers: snapshot.answers,
@@ -265,12 +276,16 @@ export function AppProvider({ children }: PropsWithChildren): JSX.Element {
       lawIds.push(law.id)
 
       const seenNumbers = new Set(current.articles
-        .filter((article) => article.lawId === law.id && !article.deletedAt)
+        .filter((article) => article.lawId === law.id)
         .map((article) => normalizeArticleNumber(article.articleNumber)))
+      const amendmentSpec = bundle.laws.find((candidate) => candidate.spec.name === '中華民國憲法增修條文')
+      const stoppedConstitutionNumbers = item.spec.name === '中華民國憲法' && amendmentSpec
+        ? extractStoppedConstitutionArticleNumbers(amendmentSpec.drafts.map((draft) => draft.text))
+        : new Set<string>()
       for (const draft of item.drafts) {
         const number = draft.articleNumber.trim() || '未編號'
         const numberKey = normalizeArticleNumber(number)
-        if (seenNumbers.has(numberKey)) {
+        if (seenNumbers.has(numberKey) || stoppedConstitutionNumbers.has(numberKey)) {
           articlesSkipped += 1
           continue
         }
