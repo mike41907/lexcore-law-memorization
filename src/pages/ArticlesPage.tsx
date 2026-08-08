@@ -422,7 +422,7 @@ function LegacyArticleRow({ article, chapterLabel, onStudy, onEdit, onTrain, onD
 
 function ArticleTextBlocks({ text, highlights }: { text: string; highlights: ArticleHighlight[] }): JSX.Element {
   const blocks = splitArticleTextBlocks(text)
-  return <div className="article-structured-text" aria-label="法條項次內容">{blocks.map((block, index) => <div className={`article-text-block article-text-${block.kind}`} key={`${block.paragraphNumber}-${index}-${block.text}`}>{block.kind === 'paragraph' && <span className="article-text-label">第 {block.paragraphNumber} 項</span>}<p>{renderHighlightedText(block.text, highlights, `${block.paragraphNumber}-${index}`)}</p></div>)}</div>
+  return <div className="article-structured-text" aria-label="法條項次內容">{blocks.map((block, index) => <div className={`article-text-block article-text-${block.kind}`} key={`${block.paragraphNumber}-${index}-${block.text}`}>{block.kind === 'paragraph' && <span className="article-text-label" aria-label={`第 ${block.paragraphNumber} 項`}>{block.paragraphNumber}</span>}<p>{renderHighlightedText(block.text, highlights, `${block.paragraphNumber}-${index}`)}</p></div>)}</div>
 }
 
 function renderHighlightedText(text: string, highlights: ArticleHighlight[], keyPrefix: string): JSX.Element[] {

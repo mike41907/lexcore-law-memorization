@@ -1047,9 +1047,9 @@ body { background: radial-gradient(circle at 72% -12%, color-mix(in srgb, var(--
 .article-row-title h3 { margin: 0 0 4px; color: var(--text-primary, var(--text)); font-size: 13px; line-height: 1.5; font-weight: 600; }
 .article-frequency-topics { margin: 0 0 4px; line-height: 1.4; }
 .article-structured-text { gap: 0; margin-top: 0; }
-.article-text-block { grid-template-columns: 24px minmax(0, 1fr); gap: 8px; padding: 3px 0; border-top: 0; }
+.article-text-block { grid-template-columns: 28px minmax(0, 1fr); gap: 10px; padding: 3px 0; border-top: 0; }
 .article-text-block p { font-size: 13px; line-height: 1.65; }
-.article-text-label { color: var(--muted); font-size: 10px; line-height: 1.65; text-align: right; }
+.article-text-label { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; line-height: 1.65; text-align: center; }
 .article-text-item, .article-text-subitem { grid-template-columns: minmax(0, 1fr); padding: 2px 0 2px 32px; }
 .article-text-item .article-text-label, .article-text-subitem .article-text-label { display: none; }
 .article-row-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 7px; padding-top: 6px; border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent); }
@@ -1062,7 +1062,7 @@ body { background: radial-gradient(circle at 72% -12%, color-mix(in srgb, var(--
   .article-row { padding: 10px 4px 9px; }
   .article-row-head { gap: 5px; }
   .article-row-content { padding: 5px 0 0; }
-  .article-text-block { grid-template-columns: 22px minmax(0, 1fr); gap: 7px; padding: 2px 0; }
+  .article-text-block { grid-template-columns: 28px minmax(0, 1fr); gap: 10px; padding: 2px 0; }
   /* 款、目沒有「第幾項」標籤；若沿用上方兩欄格線，文字會被放進 22px 的第一欄。 */
   .article-text-block.article-text-item,
   .article-text-block.article-text-subitem {
