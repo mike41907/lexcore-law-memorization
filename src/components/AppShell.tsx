@@ -3,7 +3,6 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAppData } from '../context/AppContext'
 
 const navigation = [
-  { to: '/knowledge', label: '考點中心', icon: '◇' },
   { to: '/dashboard', label: '今日任務', icon: '⌂' },
   { to: '/articles', label: '法條瀏覽', icon: '≡' },
   { to: '/training', label: '模擬測驗', icon: '✦' },
@@ -44,7 +43,7 @@ export function AppShell(): JSX.Element {
           <div className="brand-mark">法</div>
           <div>
             <p className="brand-name">法典</p>
-            <p className="brand-subtitle">LEXCORE / 0.14.0</p>
+            <p className="brand-subtitle">LEXCORE / 0.14.1</p>
           </div>
         </div>
         <div className="profile-strip">

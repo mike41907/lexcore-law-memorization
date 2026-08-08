@@ -5,7 +5,7 @@ import { OfficialLawImporter } from '../components/OfficialLawImporter'
 import { LawStructureMap } from '../components/LawStructureMap'
 import { Button, EmptyState, Modal, Notice, PageHeader, ProgressBar, StatusBadge } from '../components/ui'
 import { useAppData } from '../context/AppContext'
-import type { ExamSubject, ImportArticleDraft, LawArticle, LawType } from '../types'
+import type { ArticleHighlight, ExamSubject, ImportArticleDraft, LawArticle, LawType } from '../types'
 import type { OfficialLawDataSource, OfficialLawSummary } from '../lib/officialLaws'
 import { POLICE_SERGEANT_EXAM_PRESET, type ExamPresetBundle, type ExamPresetImportResult } from '../lib/examPreset'
 import { parseJsonImport, splitLawText } from '../lib/importer'
@@ -385,27 +385,56 @@ export function ArticlesPage(): JSX.Element {
 }
 
 function ArticleRow({ article, onStudy, onEdit, onTrain, onDelete }: { article: LawArticle; onStudy: () => void; onEdit: () => void; onTrain: () => void; onDelete: () => void }): JSX.Element {
-  return <><LegacyArticleRow article={article} onStudy={onStudy} onEdit={onEdit} onTrain={onTrain} onDelete={onDelete} /><KnowledgePointSummary article={article} /></>
+  return <><LegacyArticleRow article={article} onStudy={onStudy} onEdit={onEdit} onTrain={onTrain} onDelete={onDelete} /><ArticleHighlightTools article={article} /></>
 }
 
 function LegacyArticleRow({ article, onStudy, onEdit, onTrain, onDelete }: { article: LawArticle; onStudy: () => void; onEdit: () => void; onTrain: () => void; onDelete: () => void }): JSX.Element {
   const data = useAppData()
   const mastery = data.mastery.find((item) => item.articleId === article.id)
   const questionCount = article.questions?.filter(Boolean).length ?? 0
-  return <article className="article-row card" id={`law-article-${article.id}`} data-law-article-id={article.id}><div className="article-number">第<strong>{article.articleNumber}</strong>條</div><div className="article-row-body"><div className="article-row-title"><h3>{article.title || '未命名條文'}</h3>{article.examFrequency && <p className="article-frequency-topics">{article.examFrequency.topics.slice(0, 3).map((topic) => `#${topic.rank} ${topic.title}`).join(' · ')}</p>}<ArticleTextBlocks text={article.text} /></div><div className="article-row-tags">{article.examFrequency && <span className={`frequency-chip tier-${article.examFrequency.tier.toLowerCase()}`}>#{article.examFrequency.bestRank} · {article.examFrequency.tier}級 · {article.examFrequency.totalCount}次</span>}{article.mustMemorize && <span className="must-tag">必背</span>}{article.isBoss && <span className="boss-tag">魔王</span>}{article.source && <span className="official-source-badge">官方匯入</span>}{article.notes.trim() && <span className="study-tag">有筆記</span>}{questionCount > 0 && <span className="study-tag">考題 {questionCount}</span>}<StatusBadge status={mastery?.status ?? '未開始'} /></div></div><div className="article-row-progress"><strong>{Math.round(mastery?.score ?? 0)}%</strong><ProgressBar value={mastery?.score ?? 0} showValue={false} tone={(mastery?.score ?? 0) >= 80 ? 'green' : 'blue'} /></div><div className="row-actions"><Button variant="secondary" onClick={onTrain}>訓練</Button><Button variant="ghost" onClick={onStudy}>筆記／考題</Button><Button variant="ghost" onClick={onEdit}>編輯</Button><button className="icon-button danger-icon" onClick={onDelete} aria-label="封存法條">×</button></div></article>
+  return <article className="article-row card" id={`law-article-${article.id}`} data-law-article-id={article.id}><div className="article-number">第<strong>{article.articleNumber}</strong>條</div><div className="article-row-body"><div className="article-row-title"><h3>{article.title || '未命名條文'}</h3>{article.examFrequency && <p className="article-frequency-topics">{article.examFrequency.topics.slice(0, 3).map((topic) => `#${topic.rank} ${topic.title}`).join(' · ')}</p>}<ArticleTextBlocks text={article.text} highlights={article.highlights ?? []} /></div><div className="article-row-tags">{article.examFrequency && <span className={`frequency-chip tier-${article.examFrequency.tier.toLowerCase()}`}>#{article.examFrequency.bestRank} · {article.examFrequency.tier}級 · {article.examFrequency.totalCount}次</span>}{article.mustMemorize && <span className="must-tag">必背</span>}{article.isBoss && <span className="boss-tag">魔王</span>}{article.source && <span className="official-source-badge">官方匯入</span>}{article.notes.trim() && <span className="study-tag">有筆記</span>}{questionCount > 0 && <span className="study-tag">考題 {questionCount}</span>}<StatusBadge status={mastery?.status ?? '未開始'} /></div></div><div className="article-row-progress"><strong>{Math.round(mastery?.score ?? 0)}%</strong><ProgressBar value={mastery?.score ?? 0} showValue={false} tone={(mastery?.score ?? 0) >= 80 ? 'green' : 'blue'} /></div><div className="row-actions"><Button variant="secondary" onClick={onTrain}>訓練</Button><Button variant="ghost" onClick={onStudy}>筆記／考題</Button><Button variant="ghost" onClick={onEdit}>編輯</Button><button className="icon-button danger-icon" onClick={onDelete} aria-label="封存法條">×</button></div></article>
 }
 
-function ArticleTextBlocks({ text }: { text: string }): JSX.Element {
+function ArticleTextBlocks({ text, highlights }: { text: string; highlights: ArticleHighlight[] }): JSX.Element {
   const blocks = splitArticleTextBlocks(text)
-  return <div className="article-structured-text" aria-label="法條項次內容">{blocks.map((block, index) => <div className={`article-text-block article-text-${block.kind}`} key={`${block.paragraphNumber}-${index}-${block.text}`}>{block.kind === 'paragraph' && <span className="article-text-label">第 {block.paragraphNumber} 項</span>}<p>{block.text}</p></div>)}</div>
+  return <div className="article-structured-text" aria-label="法條項次內容">{blocks.map((block, index) => <div className={`article-text-block article-text-${block.kind}`} key={`${block.paragraphNumber}-${index}-${block.text}`}>{block.kind === 'paragraph' && <span className="article-text-label">第 {block.paragraphNumber} 項</span>}<p>{renderHighlightedText(block.text, highlights, `${block.paragraphNumber}-${index}`)}</p></div>)}</div>
 }
 
-function KnowledgePointSummary({ article }: { article: LawArticle }): JSX.Element | null {
+function renderHighlightedText(text: string, highlights: ArticleHighlight[], keyPrefix: string): JSX.Element[] {
+  const ordered = highlights
+    .filter((highlight) => text.includes(highlight.text))
+    .sort((left, right) => text.indexOf(left.text) - text.indexOf(right.text))
+  const parts: JSX.Element[] = []
+  let cursor = 0
+  for (const highlight of ordered) {
+    const start = text.indexOf(highlight.text, cursor)
+    if (start < 0) continue
+    if (start > cursor) parts.push(<span key={`${keyPrefix}-text-${cursor}`}>{text.slice(cursor, start)}</span>)
+    parts.push(<mark key={`${keyPrefix}-${highlight.id}`} className={`article-highlight highlight-${highlight.color}`}>{highlight.text}</mark>)
+    cursor = start + highlight.text.length
+  }
+  if (cursor < text.length) parts.push(<span key={`${keyPrefix}-text-${cursor}`}>{text.slice(cursor)}</span>)
+  return parts
+}
+
+function ArticleHighlightTools({ article }: { article: LawArticle }): JSX.Element {
   const data = useAppData()
-  const navigate = useNavigate()
-  const points = data.knowledgePoints.filter((point) => point.articleId === article.id && !point.deletedAt)
-  if (!points.length) return null
-  return <section className="article-knowledge-summary"><div className="article-knowledge-summary-head"><strong>考點 {points.length}</strong><Button variant="ghost" onClick={() => navigate('/knowledge')}>管理考點</Button></div><div className="article-knowledge-chip-list">{points.slice(0, 6).map((point) => { const mastery = data.knowledgeMastery.find((item) => item.knowledgePointId === point.id); return <button type="button" key={point.id} onClick={() => navigate(`/training/${article.id}?point=${point.id}`)}><span>{point.name}</span><b>{Math.round(mastery?.score ?? 0)}%</b></button> })}</div></section>
+  const highlights = article.highlights ?? []
+  async function addHighlight(): Promise<void> {
+    const selectedText = window.getSelection()?.toString().trim()
+    const text = (selectedText || window.prompt('輸入要螢光標記的原文片段') || '').trim()
+    if (!text || !article.text.includes(text)) return
+    if (highlights.some((item) => item.text === text)) return
+    await data.updateArticle({ ...article, highlights: [...highlights, { id: `highlight-${Date.now()}`, text, color: 'yellow', createdAt: new Date().toISOString() }] })
+  }
+  async function setMnemonic(): Promise<void> {
+    const mnemonic = window.prompt('輸入口訣或諧音', article.mnemonic ?? '')
+    if (mnemonic !== null) await data.updateArticle({ ...article, mnemonic: mnemonic.trim() })
+  }
+  async function removeHighlight(id: string): Promise<void> {
+    await data.updateArticle({ ...article, highlights: highlights.filter((item) => item.id !== id) })
+  }
+  return <div className="article-mark-tools"><span>螢光重點：{highlights.length ? highlights.map((item) => <button type="button" className="highlight-chip" key={item.id} onClick={() => void removeHighlight(item.id)} title="點擊移除">{item.text}</button>) : <small>尚未標記</small>}</span><Button variant="ghost" onClick={() => void addHighlight()}>螢光標記</Button><Button variant="ghost" onClick={() => void setMnemonic()}>設定口訣</Button></div>
 }
 
 function ArticleStudyForm({ article, onSave, onCancel }: { article: LawArticle; onSave: (article: LawArticle) => void; onCancel: () => void }): JSX.Element {

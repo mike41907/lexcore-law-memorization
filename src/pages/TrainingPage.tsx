@@ -9,7 +9,7 @@ import { createLegalQuizQuestions, type LegalQuizQuestion } from '../lib/legalQu
 import { extractKeywordTraps, type KeywordTrap } from '../lib/keywordTraining'
 import { formatRelativeReview } from '../lib/utils'
 import { compareTrainingPriority } from '../lib/tasks'
-import { KnowledgePointTraining } from '../components/KnowledgePointTraining'
+import { PrecisionTrainingPanel } from '../components/PrecisionTrainingPanel'
 
 const modes: Array<{ value: TrainingMode; label: string; description: string }> = [
   { value: 'reading', label: '01 全文閱讀', description: '先完整閱讀原文，建立條文的整體架構。' },
@@ -229,10 +229,10 @@ export function TrainingPage(): JSX.Element {
     return <div className="page-stack"><PageHeader eyebrow="TRAINING / 訓練模式" title="開始訓練" description="請先匯入至少一條已校對的法條原文。" /><div className="empty-state card"><div className="empty-icon">✦</div><h3>尚無可訓練法條</h3><p>法條資料會留在本機 IndexedDB，不需要登入或網路。</p><Button onClick={() => navigate('/articles')}>前往法條瀏覽</Button></div></div>
   }
 
-  if (selectedPoint && selectedPoint.articleId === article.id) {
-    return <KnowledgePointTraining article={article} point={selectedPoint} questions={selectedPointQuestions} mastery={selectedPointMastery} />
-  }
+  return <PrecisionTrainingPanel article={article} lawName={law?.shortName ?? law?.name} />
 
+  /* Legacy multi-mode training layout retained below as a reference during the migration.
+     The active workflow is PrecisionTrainingPanel above.
   return <div className="page-stack training-page">
     <PageHeader eyebrow="TRAINING / 訓練模式" title="精準背誦訓練" description="依序完成全文閱讀、要件／效果／刑罰選擇題、段落排序、數字陷阱與應／得用語陷阱。" actions={<Button variant="secondary" onClick={() => navigate('/today')}>今日任務</Button>} />
 
@@ -316,6 +316,7 @@ export function TrainingPage(): JSX.Element {
 
     {result && mode !== 'numbers' && mode !== 'comprehension' && mode !== 'keywords' && <div className="after-result-actions"><Button variant="secondary" onClick={nextArticle}>下一條法條 →</Button><Button variant="ghost" onClick={() => navigate('/records')}>查看學習紀錄</Button></div>}
   </div>
+*/
 }
 
 function ComprehensionPanel({ question, choice, onChoose, result }: { question?: LegalQuizQuestion; choice: string; onChoose: (value: string) => void; result: SubmissionResult | null }): JSX.Element {

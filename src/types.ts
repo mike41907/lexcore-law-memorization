@@ -80,6 +80,8 @@ export interface LawArticle {
   text: string
   notes: string
   questions?: string[]
+  mnemonic?: string
+  highlights?: ArticleHighlight[]
   importance: 1 | 2 | 3 | 4 | 5
   mustMemorize: boolean
   includeDaily: boolean
@@ -90,6 +92,13 @@ export interface LawArticle {
   createdAt: ISODate
   updatedAt: ISODate
   deletedAt?: ISODate
+}
+
+export interface ArticleHighlight {
+  id: string
+  text: string
+  color: 'yellow' | 'pink' | 'blue' | 'green'
+  createdAt: ISODate
 }
 
 /**

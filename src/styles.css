@@ -59,6 +59,48 @@
 .article-knowledge-chip-list button:hover { border-color: var(--accent); }
 .article-knowledge-chip-list span { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .article-knowledge-chip-list b { color: var(--accent); font-size: 11px; }
+.article-mark-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; padding: 10px 12px; border-top: 1px solid var(--line); color: var(--text-secondary); font-size: 13px; }
+.article-mark-tools > span { flex: 1 1 240px; }
+.highlight-chip { margin: 3px; padding: 3px 7px; border: 0; border-radius: 4px; background: #ffe66d; color: #3b2d00; cursor: pointer; }
+.article-highlight-preview { margin: 0 12px 12px; padding: 12px; border-left: 3px solid #e5b93f; background: color-mix(in srgb, #ffe66d 12%, var(--surface)); color: var(--text-primary); line-height: 1.8; }
+.article-highlight { padding: 0 2px; border-radius: 3px; background: #ffe66d; color: #2c2500; }
+.highlight-pink { background: #ffb3c7; }
+.highlight-blue { background: #a8d8ff; }
+.highlight-green { background: #b9edb5; }
+.precision-training-page { max-width: 1050px; }
+.precision-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.precision-step { display: grid; gap: 5px; padding: 13px; border: 1px solid var(--line); border-radius: 12px; color: var(--text-secondary); }
+.precision-step span { font-size: 11px; color: var(--muted-2); }
+.precision-step.active { border-color: var(--accent); color: var(--text-primary); background: var(--surface-hover); }
+.precision-step.done { color: var(--success); }
+.precision-reading, .precision-action { display: grid; gap: 18px; }
+.precision-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.precision-heading h2, .precision-action h2 { margin: 0; }
+.precision-article-text { margin: 0; font-size: 20px; line-height: 2; white-space: pre-wrap; }
+.precision-progress { display: grid; gap: 7px; color: var(--text-secondary); font-size: 13px; }
+.mnemonic-card { padding: 18px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: 14px; background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.mnemonic-card p { margin: 8px 0; font-size: 21px; font-weight: 700; line-height: 1.7; }
+.mnemonic-card small { color: var(--text-secondary); }
+.precision-context { padding: 16px; border-radius: 12px; background: var(--surface-hover); line-height: 1.8; font-size: 18px; }
+.precision-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.precision-options button { min-height: 54px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-hover); color: var(--text-primary); cursor: pointer; font-size: 18px; }
+.precision-options button.selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
+.precision-result { display: grid; gap: 12px; }
+.precision-order-list { display: grid; gap: 8px; }
+.precision-order-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) 38px 38px; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-hover); }
+.precision-order-row > span { color: var(--accent); font-weight: 700; text-align: center; }
+.precision-order-row p { margin: 0; line-height: 1.7; }
+.precision-order-row button { min-height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text-primary); cursor: pointer; }
+.precision-order-row button:disabled { opacity: .35; cursor: not-allowed; }
+
+@media (max-width: 620px) {
+  .precision-steps { grid-template-columns: repeat(2, 1fr); }
+  .precision-article-text { font-size: 17px; line-height: 1.9; }
+  .precision-options { grid-template-columns: 1fr; }
+  .precision-order-row { grid-template-columns: 25px minmax(0, 1fr) 34px 34px; }
+  .article-mark-tools { align-items: stretch; }
+  .article-mark-tools .button { flex: 1 1 120px; }
+}
 .knowledge-point-card { display: grid; gap: 12px; transition: border-color .2s ease, transform .2s ease; }
 .knowledge-point-card.is-selected { border-color: var(--accent); transform: translateY(-2px); }
 .knowledge-point-card-head, .knowledge-point-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }

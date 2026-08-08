@@ -6,7 +6,6 @@ import { ArticlesPage } from './pages/ArticlesPage'
 import { TrainingPage } from './pages/TrainingPage'
 import { ErrorsPage } from './pages/ErrorsPage'
 import { AnalyticsPage } from './pages/AnalyticsPage'
-import { KnowledgeDashboardPage } from './pages/KnowledgeDashboardPage'
 import { RecordsPage } from './pages/RecordsPage'
 import { AchievementsPage } from './pages/AchievementsPage'
 import { ConfusionsPage } from './pages/ConfusionsPage'
@@ -27,7 +26,6 @@ export default function App(): JSX.Element {
       <Route path="/training/:articleId" element={<TrainingPage />} />
       <Route path="/errors" element={<ErrorsPage />} />
       <Route path="/analytics" element={<AnalyticsPage />} />
-      <Route path="/knowledge" element={<KnowledgeDashboardPage />} />
       <Route path="/records" element={<RecordsPage />} />
       <Route path="/achievements" element={<AchievementsPage />} />
       <Route path="/confusions" element={<ConfusionsPage />} />
