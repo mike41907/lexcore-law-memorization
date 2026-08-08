@@ -6,8 +6,8 @@ export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?:
   return <div className="page-header"><div><p className="eyebrow">{eyebrow ?? 'LEXCORE / 本機訓練系統'}</p><h1>{title}</h1>{description && <p className="page-description">{description}</p>}</div>{actions && <div className="page-actions">{actions}</div>}</div>
 }
 
-export function Button({ children, variant = 'primary', type = 'button', className = '', disabled = false, onClick }: { children: ReactNode; variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'gold'; type?: 'button' | 'submit' | 'reset'; className?: string; disabled?: boolean; onClick?: () => void }): JSX.Element {
-  return <button type={type} className={`button button-${variant} ${className}`} disabled={disabled} onClick={onClick}>{children}</button>
+export function Button({ children, variant = 'primary', type = 'button', className = '', disabled = false, onClick, 'aria-label': ariaLabel }: { children: ReactNode; variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'gold'; type?: 'button' | 'submit' | 'reset'; className?: string; disabled?: boolean; onClick?: () => void; 'aria-label'?: string }): JSX.Element {
+  return <button type={type} className={`button button-${variant} ${className}`} disabled={disabled} onClick={onClick} aria-label={ariaLabel}>{children}</button>
 }
 
 export function ProgressBar({ value, tone = 'gold', label, showValue = true }: { value: number; tone?: 'gold' | 'blue' | 'green' | 'red'; label?: string; showValue?: boolean }): JSX.Element {

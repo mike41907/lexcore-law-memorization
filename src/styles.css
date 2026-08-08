@@ -889,3 +889,42 @@ body { background: radial-gradient(circle at 72% -12%, color-mix(in srgb, var(--
 [data-theme="light"] .numeric-feedback.correct { background: rgba(17, 108, 72, .07); }
 [data-theme="light"] .numeric-feedback.wrong { background: rgba(179, 49, 74, .07); }
 [data-theme="light"] .hint-box { background: rgba(137, 91, 18, .08); }
+
+/* v0.13.2 mobile structure UX: use touch-friendly vertical reading instead of map gestures. */
+.law-structure-zoom-controls,
+.law-structure-view-controls { display: flex; align-items: center; gap: 6px; }
+.law-structure-zoom-controls .button { min-width: 38px; }
+.law-structure-view-controls { justify-content: flex-end; flex-wrap: wrap; }
+.law-structure-mobile-hint { display: none; }
+
+@media (max-width: 720px) {
+  .law-structure-heading { gap: 12px; }
+  .law-structure-heading h2 { font-size: 20px; }
+  .law-structure-heading .muted-text { line-height: 1.6; }
+  .law-structure-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .law-structure-zoom-controls { display: none; }
+  .law-structure-view-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .law-structure-view-controls .button { min-height: 44px; width: 100%; }
+  .law-structure-view-controls .button:first-child { display: none; }
+  .law-structure-outline { display: flex; align-items: center; gap: 7px; max-height: none; overflow-x: auto; overflow-y: hidden; padding: 10px; scrollbar-width: thin; }
+  .law-structure-outline-title { flex: 0 0 auto; margin: 0 5px 0 0; }
+  .law-structure-outline > .law-outline-node { flex: 0 0 auto; width: auto; }
+  .law-structure-outline .law-outline-node > div { display: none; }
+  .law-outline-node button { min-height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--text-secondary); background: var(--surface-hover); font-size: 11px; white-space: nowrap; }
+  .law-outline-node button:hover { background: var(--surface); }
+  .law-outline-node button span { margin-right: 5px; }
+  .law-structure-viewport { max-height: none; overflow: visible; cursor: default; touch-action: auto; background: transparent; }
+  .law-structure-canvas { width: 100%; min-width: 0; padding: 0; transform: none !important; }
+  .law-structure-tree { min-width: 0; gap: 10px; }
+  .law-structure-node { min-width: 0; }
+  .law-structure-node-card { grid-template-columns: minmax(0, 1fr) auto 42px; min-height: 76px; padding: 13px; }
+  .law-structure-node-link { min-height: 48px; justify-content: center; }
+  .law-structure-node-link strong { font-size: 13px; line-height: 1.45; }
+  .law-structure-node-link span { font-size: 10px; line-height: 1.4; }
+  .law-structure-node-score { font-size: 11px; }
+  .law-structure-node-toggle { width: 40px; height: 40px; border-radius: 10px; font-size: 20px; }
+  .law-structure-children { gap: 8px; padding-left: 10px; margin-left: 6px; }
+  .law-structure-children .law-structure-node-card { background: var(--surface-hover); }
+  .law-structure-desktop-hint { display: none; }
+  .law-structure-mobile-hint { display: inline; }
+}

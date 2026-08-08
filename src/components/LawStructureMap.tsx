@@ -58,7 +58,18 @@ export function LawStructureMap({ lawName, map, mastery, activeNodeId, onSelectA
   return <section className="law-structure card">
     <div className="law-structure-heading">
       <div><p className="eyebrow">STRUCTURE / 法規體系</p><h2>{lawName}架構圖</h2><p className="muted-text">架構只取自已匯入法條的官方標題；點選節點可跳到對應全文。</p></div>
-      <div className="law-structure-actions"><Button variant="ghost" onClick={() => setScale((value) => Math.min(1.8, value + .1))}>＋</Button><span className="structure-zoom">{Math.round(scale * 100)}%</span><Button variant="ghost" onClick={() => setScale((value) => Math.max(.7, value - .1))}>－</Button><Button variant="secondary" onClick={fitView}>適合檢視</Button><Button variant="ghost" onClick={() => setExpanded(new Set(allNodes.map((node) => node.id)))}>全部展開</Button><Button variant="ghost" onClick={() => setExpanded(new Set())}>全部收合</Button></div>
+      <div className="law-structure-actions">
+        <div className="law-structure-zoom-controls" aria-label="架構圖縮放">
+          <Button variant="ghost" onClick={() => setScale((value) => Math.max(.7, value - .1))} aria-label="縮小架構圖">−</Button>
+          <span className="structure-zoom">{Math.round(scale * 100)}%</span>
+          <Button variant="ghost" onClick={() => setScale((value) => Math.min(1.8, value + .1))} aria-label="放大架構圖">＋</Button>
+        </div>
+        <div className="law-structure-view-controls">
+          <Button variant="secondary" onClick={fitView}>適合檢視</Button>
+          <Button variant="ghost" onClick={() => setExpanded(new Set(allNodes.map((node) => node.id)))}>全部展開</Button>
+          <Button variant="ghost" onClick={() => setExpanded(new Set())}>全部收合</Button>
+        </div>
+      </div>
     </div>
     <div className="law-structure-layout">
       <aside className="law-structure-outline" aria-label="法律樹快速導覽"><div className="law-structure-outline-title">法律樹</div>{map.roots.map((node) => <OutlineNode key={node.id} node={node} onSelectArticle={onSelectArticle} />)}</aside>
@@ -70,7 +81,7 @@ export function LawStructureMap({ lawName, map, mastery, activeNodeId, onSelectA
         </div>
       </div>
     </div>
-    <p className="law-structure-hint">拖曳空白處平移 · 滾輪縮放 · 目前 {map.articleCount} 條法條、{map.nodeCount} 個架構節點</p>
+    <p className="law-structure-hint"><span className="law-structure-desktop-hint">拖曳空白處平移 · 滾輪縮放 · </span><span className="law-structure-mobile-hint">手機版採直向閱讀；點選章節即可定位全文 · </span>目前 {map.articleCount} 條法條、{map.nodeCount} 個架構節點</p>
   </section>
 }
 
