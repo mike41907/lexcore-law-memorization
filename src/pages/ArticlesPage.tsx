@@ -30,6 +30,7 @@ export function ArticlesPage(): JSX.Element {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [editing, setEditing] = useState<LawArticle | null>(null)
+  const [studyEditing, setStudyEditing] = useState<LawArticle | null>(null)
   const [viewing, setViewing] = useState<LawArticle | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const selectedLaw = activeLaws.find((law) => law.id === selectedLawId)
@@ -47,6 +48,7 @@ export function ArticlesPage(): JSX.Element {
 
   function changeLaw(id: string): void {
     setSelectedLawId(id)
+    setSearch('')
     setSearchParams(id ? { law: id } : {})
   }
 
@@ -162,6 +164,17 @@ export function ArticlesPage(): JSX.Element {
     }
   }
 
+  async function saveStudyArticle(article: LawArticle): Promise<void> {
+    try {
+      await data.updateArticle(article)
+      setStudyEditing(null)
+      setViewing(null)
+      setMessage(`第 ${article.articleNumber} 條的筆記與考題已儲存。`)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '筆記與考題儲存失敗。')
+    }
+  }
+
   async function removeArticle(article: LawArticle): Promise<void> {
     if (!window.confirm(`確定要刪除第 ${article.articleNumber} 條嗎？作答紀錄會保留。`)) return
     try {
@@ -181,6 +194,18 @@ export function ArticlesPage(): JSX.Element {
     />
     {error && <Notice tone="warning">{error}</Notice>}
     {message && <Notice tone="success">{message}</Notice>}
+
+    <section className="article-browser-selector card">
+      <div>
+        <p className="eyebrow">BROWSER / 法條瀏覽</p>
+        <h2>選擇要閱讀的法規</h2>
+        <p className="muted-text">先選擇法規，再瀏覽條文；每一條都可以獨立保存筆記與考題。</p>
+      </div>
+      <label>目前法規<select value={selectedLawId} onChange={(event) => changeLaw(event.target.value)} disabled={!activeLaws.length}>
+        {!activeLaws.length && <option value="">尚未建立法規</option>}
+        {activeLaws.map((law) => <option value={law.id} key={law.id}>{law.name}（{law.shortName}）</option>)}
+      </select></label>
+    </section>
 
     <section className="import-workbench card">
       <div className="workbench-head">
@@ -228,18 +253,40 @@ export function ArticlesPage(): JSX.Element {
 
     {selectedLaw ? <section className="article-browser">
       <div className="section-toolbar"><div><p className="eyebrow">BROWSER / {selectedLaw.shortName}</p><h2>已儲存法條 <span className="count-chip">{articles.length}</span></h2></div><label className="search-box"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜尋條號、標題或文字" /></label></div>
-      {articles.length ? <div className="article-list">{articles.map((article) => <ArticleRow key={article.id} article={article} onView={() => setViewing(article)} onEdit={() => setEditing(article)} onTrain={() => navigate(`/training/${article.id}`)} onDelete={() => void removeArticle(article)} />)}</div> : <EmptyState icon="≡" title="這部法規還沒有法條" description="從官方資料庫勾選條文，或貼上文字並產生預覽。" />}
+      {articles.length ? <div className="article-list">{articles.map((article) => <ArticleRow key={article.id} article={article} onView={() => setViewing(article)} onStudy={() => setStudyEditing(article)} onEdit={() => setEditing(article)} onTrain={() => navigate(`/training/${article.id}`)} onDelete={() => void removeArticle(article)} />)}</div> : <EmptyState icon="≡" title="這部法規還沒有法條" description="從官方資料庫勾選條文，或貼上文字並產生預覽。" />}
     </section> : <EmptyState icon="⌕" title="先搜尋並選擇法條" description="上方可直接搜尋全國法規資料庫；選好條文後，系統會自動建立對應的本機法規。" />}
 
-    {viewing && <Modal title={`${selectedLaw?.shortName ?? ''} · 第 ${viewing.articleNumber} 條`} onClose={() => setViewing(null)}><div className="article-view"><div className="article-view-meta"><Stars value={viewing.importance} />{viewing.mustMemorize && <span className="must-tag">必背</span>}{viewing.source && <span className="official-source-badge">官方匯入</span>}<span>更新於 {formatDateTimeTW(viewing.updatedAt)}</span></div><p className="article-original">{viewing.text}</p>{viewing.source && <Notice tone="info">來源：<a href={viewing.source.lawUrl} target="_blank" rel="noreferrer">法務部全國法規資料庫 ↗</a>；資料更新 {viewing.source.dataUpdatedAt}，匯入 {formatDateTimeTW(viewing.source.retrievedAt)}。</Notice>}{viewing.notes && <Notice tone="info">備註：{viewing.notes}</Notice>}<div className="modal-actions"><Button variant="ghost" onClick={() => { setViewing(null); setEditing(viewing) }}>編輯</Button><Button onClick={() => navigate(`/training/${viewing.id}`)}>開始訓練</Button></div></div></Modal>}
+    {viewing && <Modal title={`${selectedLaw?.shortName ?? ''} · 第 ${viewing.articleNumber} 條`} onClose={() => setViewing(null)}><div className="article-view"><div className="article-view-meta"><Stars value={viewing.importance} />{viewing.mustMemorize && <span className="must-tag">必背</span>}{viewing.source && <span className="official-source-badge">官方匯入</span>}<span>更新於 {formatDateTimeTW(viewing.updatedAt)}</span></div><p className="article-original">{viewing.text}</p>{viewing.source && <Notice tone="info">來源：<a href={viewing.source.lawUrl} target="_blank" rel="noreferrer">法務部全國法規資料庫 ↗</a>；資料更新 {viewing.source.dataUpdatedAt}，匯入 {formatDateTimeTW(viewing.source.retrievedAt)}。</Notice>}<StudySummary article={viewing} /><div className="modal-actions"><Button variant="ghost" onClick={() => { setViewing(null); setStudyEditing(viewing) }}>筆記／考題</Button><Button variant="ghost" onClick={() => { setViewing(null); setEditing(viewing) }}>編輯</Button><Button onClick={() => navigate(`/training/${viewing.id}`)}>開始訓練</Button></div></div></Modal>}
     {editing && <Modal title={`編輯第 ${editing.articleNumber} 條`} onClose={() => setEditing(null)}><ArticleEditForm article={editing} onCancel={() => setEditing(null)} onSave={(article) => void saveArticle(article)} /></Modal>}
+    {studyEditing && <Modal title={`整理第 ${studyEditing.articleNumber} 條`} onClose={() => setStudyEditing(null)}><ArticleStudyForm article={studyEditing} onCancel={() => setStudyEditing(null)} onSave={(article) => void saveStudyArticle(article)} /></Modal>}
   </div>
 }
 
-function ArticleRow({ article, onView, onEdit, onTrain, onDelete }: { article: LawArticle; onView: () => void; onEdit: () => void; onTrain: () => void; onDelete: () => void }): JSX.Element {
+function ArticleRow({ article, onView, onStudy, onEdit, onTrain, onDelete }: { article: LawArticle; onView: () => void; onStudy: () => void; onEdit: () => void; onTrain: () => void; onDelete: () => void }): JSX.Element {
   const data = useAppData()
   const mastery = data.mastery.find((item) => item.articleId === article.id)
-  return <article className="article-row card"><div className="article-number">第<strong>{article.articleNumber}</strong>條</div><div className="article-row-body"><div className="article-row-title"><h3>{article.title || '未命名條文'}</h3><span className="article-preview">{article.text.slice(0, 120)}{article.text.length > 120 ? '…' : ''}</span></div><div className="article-row-tags">{article.mustMemorize && <span className="must-tag">必背</span>}{article.isBoss && <span className="boss-tag">魔王</span>}{article.source && <span className="official-source-badge">官方匯入</span>}<StatusBadge status={mastery?.status ?? '未開始'} /></div></div><div className="article-row-progress"><strong>{Math.round(mastery?.score ?? 0)}%</strong><ProgressBar value={mastery?.score ?? 0} showValue={false} tone={(mastery?.score ?? 0) >= 80 ? 'green' : 'blue'} /></div><div className="row-actions"><Button variant="secondary" onClick={onTrain}>訓練</Button><Button variant="ghost" onClick={onView}>查看</Button><Button variant="ghost" onClick={onEdit}>編輯</Button><button className="icon-button danger-icon" onClick={onDelete} aria-label="封存法條">×</button></div></article>
+  const questionCount = article.questions?.filter(Boolean).length ?? 0
+  return <article className="article-row card"><div className="article-number">第<strong>{article.articleNumber}</strong>條</div><div className="article-row-body"><div className="article-row-title"><h3>{article.title || '未命名條文'}</h3><span className="article-preview">{article.text.slice(0, 120)}{article.text.length > 120 ? '…' : ''}</span></div><div className="article-row-tags">{article.mustMemorize && <span className="must-tag">必背</span>}{article.isBoss && <span className="boss-tag">魔王</span>}{article.source && <span className="official-source-badge">官方匯入</span>}{article.notes.trim() && <span className="study-tag">有筆記</span>}{questionCount > 0 && <span className="study-tag">考題 {questionCount}</span>}<StatusBadge status={mastery?.status ?? '未開始'} /></div></div><div className="article-row-progress"><strong>{Math.round(mastery?.score ?? 0)}%</strong><ProgressBar value={mastery?.score ?? 0} showValue={false} tone={(mastery?.score ?? 0) >= 80 ? 'green' : 'blue'} /></div><div className="row-actions"><Button variant="secondary" onClick={onTrain}>訓練</Button><Button variant="ghost" onClick={onView}>查看</Button><Button variant="ghost" onClick={onStudy}>筆記／考題</Button><Button variant="ghost" onClick={onEdit}>編輯</Button><button className="icon-button danger-icon" onClick={onDelete} aria-label="封存法條">×</button></div></article>
+}
+
+function StudySummary({ article }: { article: LawArticle }): JSX.Element {
+  const questions = article.questions?.filter(Boolean) ?? []
+  return <div className="study-summary"><div className="study-summary-block"><strong>我的筆記</strong>{article.notes.trim() ? <p>{article.notes}</p> : <span>尚未加入筆記</span>}</div><div className="study-summary-block"><strong>我的考題／陷阱</strong>{questions.length ? <ol>{questions.map((question, index) => <li key={`${question}-${index}`}>{question}</li>)}</ol> : <span>尚未加入考題</span>}</div></div>
+}
+
+function ArticleStudyForm({ article, onSave, onCancel }: { article: LawArticle; onSave: (article: LawArticle) => void; onCancel: () => void }): JSX.Element {
+  const [notes, setNotes] = useState(article.notes)
+  const [questions, setQuestions] = useState(article.questions?.filter(Boolean) ?? [])
+  const [newQuestion, setNewQuestion] = useState('')
+
+  function addQuestion(): void {
+    const question = newQuestion.trim()
+    if (!question) return
+    setQuestions((items) => [...items, question])
+    setNewQuestion('')
+  }
+
+  return <form className="form-stack study-form" onSubmit={(event) => { event.preventDefault(); onSave({ ...article, notes: notes.trim(), questions: questions.map((question) => question.trim()).filter(Boolean) }) }}><div className="study-source"><p className="eyebrow">第 {article.articleNumber} 條</p><p>{article.text}</p></div><label>我的筆記<textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={5} placeholder="記下構成要件、法理、容易混淆之處或自己的理解……" /></label><div className="study-question-editor"><div><strong>我的考題／陷阱</strong><p className="muted-text">可記錄歷屆考題、數字陷阱或「應／得」辨析。</p></div><div className="study-question-add"><input value={newQuestion} onChange={(event) => setNewQuestion(event.target.value)} placeholder="輸入一題考題或陷阱" /><Button type="button" variant="secondary" onClick={addQuestion}>加入</Button></div>{questions.length ? <ol className="study-question-list">{questions.map((question, index) => <li key={`${index}-${question}`}><textarea value={question} onChange={(event) => setQuestions((items) => items.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} rows={2} /><button type="button" className="icon-button danger-icon" onClick={() => setQuestions((items) => items.filter((_, itemIndex) => itemIndex !== index))} aria-label={`移除第 ${index + 1} 題`}>×</button></li>)}</ol> : <span className="empty-inline">尚未加入考題</span>}</div><div className="modal-actions"><Button type="button" variant="ghost" onClick={onCancel}>取消</Button><Button type="submit">儲存筆記與考題</Button></div></form>
 }
 
 function ArticleEditForm({ article, onSave, onCancel }: { article: LawArticle; onSave: (article: LawArticle) => void; onCancel: () => void }): JSX.Element {

@@ -73,6 +73,7 @@ export interface LawArticle {
   title: string
   text: string
   notes: string
+  questions?: string[]
   importance: 1 | 2 | 3 | 4 | 5
   mustMemorize: boolean
   includeDaily: boolean
