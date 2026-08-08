@@ -46,7 +46,8 @@
 .knowledge-map { display: grid; gap: 16px; }
 .knowledge-map-groups { display: grid; gap: 12px; }
 .knowledge-map-group { display: grid; gap: 8px; min-width: 0; padding: 12px; border-left: 2px solid var(--accent); background: var(--surface-hover); border-radius: 0 12px 12px 0; }
-.knowledge-map-points { display: flex; gap: 8px; flex-wrap: wrap; padding-left: 14px; }
+.knowledge-map-group > strong { min-width: 0; max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }
+.knowledge-map-points { display: flex; width: 100%; min-width: 0; gap: 8px; flex-wrap: wrap; padding-left: 14px; }
 .knowledge-map-points button { display: inline-flex; align-items: center; gap: 8px; max-width: min(100%, 360px); min-width: 0; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text-primary); padding: 7px 10px; cursor: pointer; }
 .knowledge-map-points button:hover { border-color: var(--accent); }
 .knowledge-map-points span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -93,6 +94,7 @@
   .knowledge-point-card .row-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .knowledge-point-card .row-actions .button:first-child { grid-column: 1 / -1; }
   .knowledge-question-card { padding: 18px; }
+  .knowledge-map-points button { width: 100%; max-width: 100%; border-radius: 12px; }
 }
 
 [data-theme="light"] {
